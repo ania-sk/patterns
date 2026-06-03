@@ -1,26 +1,57 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
+/* ─── Design tokens ─────────────────────────────────────────── */
+@theme {
+  /* Kolory — mapowane na CSS variables */
+  --color-background:    var(--background);
+  --color-surface:       var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border:        var(--border);
+  --color-accent:        var(--accent);
+  --color-accent-hover:  var(--accent-hover);
+  --color-success:       var(--success);
+  --color-warning:       var(--warning);
+  --color-info:          var(--info);
+  --color-text-primary:  var(--text-primary);
+  --color-text-muted:    var(--text-muted);
+
+  /* Fonty */
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+}
+
+/* ─── CSS variables per motyw ───────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background:    #FAFAF8;
+  --surface:       #FFFFFF;
+  --surface-hover: #F4F4F5;
+  --text-primary:  #171717;
+  --text-muted:    #737373;
+  --border:        #E5E5E5;
+  --accent:        #7C3AED;
+  --accent-hover:  #8B5CF6;
+  --success:       #16A34A;
+  --warning:       #F59E0B;
+  --info:          #2563EB;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --background:    #09090B;
+  --surface:       #18181B;
+  --surface-hover: #232326;
+  --text-primary:  #FAFAFA;
+  --text-muted:    #A1A1AA;
+  --border:        #27272A;
+  --accent:        #8B5CF6;
+  --accent-hover:  #A78BFA;
+  --success:       #22C55E;
+  --warning:       #FBBF24;
+  --info:          #60A5FA;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ─── Reset ─────────────────────────────────────────────────── */
 body {
+  color: var(--text-primary);
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
