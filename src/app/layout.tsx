@@ -3,6 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "next-themes";
 import Navbar from "@/components/Navbar";
+import Foooter from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -35,6 +36,7 @@ export default function RootLayout({
         >
           <Navbar />
           <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+          <Foooter />
         </ThemeProvider>
       </body>
     </html>
