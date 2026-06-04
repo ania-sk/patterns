@@ -4,17 +4,17 @@
 /* ─── Design tokens ─────────────────────────────────────────── */
 @theme {
   /* Kolory — mapowane na CSS variables */
-  --color-background:    var(--background);
-  --color-surface:       var(--surface);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
-  --color-border:        var(--border);
-  --color-accent:        var(--accent);
-  --color-accent-hover:  var(--accent-hover);
-  --color-success:       var(--success);
-  --color-warning:       var(--warning);
-  --color-info:          var(--info);
-  --color-text-primary:  var(--text-primary);
-  --color-text-muted:    var(--text-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
 
   /* Fonty */
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
@@ -23,33 +23,38 @@
 
 /* ─── CSS variables per motyw ───────────────────────────────── */
 :root {
-  --background:    #FAFAF8;
-  --surface:       #FFFFFF;
-  --surface-hover: #F4F4F5;
-  --text-primary:  #171717;
-  --text-muted:    #737373;
-  --border:        #E5E5E5;
-  --accent:        #7C3AED;
-  --accent-hover:  #8B5CF6;
-  --success:       #16A34A;
-  --warning:       #F59E0B;
-  --info:          #2563EB;
+  --background: #fafaf8;
+  --surface: #ffffff;
+  --surface-hover: #f5f2f1;
+
+  --text-primary: #28231c;
+  --text-muted: #655356;
+  --border: #ddd7d4;
+
+  --accent: #513b3c;
+  --accent-hover: #655356;
+
+  --success: #2e8b57;
+  --warning: #c27c2c;
+  --info: #5aafcf;
 }
 
 .dark {
-  --background:    #09090B;
-  --surface:       #18181B;
-  --surface-hover: #232326;
-  --text-primary:  #FAFAFA;
-  --text-muted:    #A1A1AA;
-  --border:        #27272A;
-  --accent:        #8B5CF6;
-  --accent-hover:  #A78BFA;
-  --success:       #22C55E;
-  --warning:       #FBBF24;
-  --info:          #60A5FA;
-}
+  --background: #070707;
+  --surface: #28231c;
+  --surface-hover: #332c24;
 
+  --text-primary: #fafafa;
+  --text-muted: #b3a4a6;
+  --border: #513b3c;
+
+  --accent: #c1eeff;
+  --accent-hover: #d8f4ff;
+
+  --success: #4caf72;
+  --warning: #d9a441;
+  --info: #c1eeff;
+}
 /* ─── Reset ─────────────────────────────────────────────────── */
 body {
   color: var(--text-primary);

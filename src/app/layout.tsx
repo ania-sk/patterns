@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "next-themes";
-import Navbar from "@/components/Navbar";
-import Foooter from "@/components/Footer";
+import Navbar from "@/components/layout/Navbar";
+import Foooter from "@/components/layout/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -5,9 +5,9 @@ export default function Footer() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto flex h-13 max-w-6xl items-center justify-between px-6 py-4">
-        <span className="font-mono text-xs text-text-muted">
-          patterns.anavers.pl
-        </span>
+        <p className="font-mono text-xs text-text-muted">
+          &copy;{new Date().getFullYear()} ania-sk
+        </p>
 
         <div className="flex items-center gap-4">
           <Link
@@ -15,10 +15,10 @@ export default function Footer() {
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 font-mono text-xs text-text-muted transition-colors hover:text-text-primary"
-            aria-label="GitHub — ania-ska"
+            aria-label="GitHub — ania-sk"
           >
             <Github size={14} aria-hidden="true" />
-            ania-ska
+            ania-sk
           </Link>
 
           <div className="h-3.5 w-px bg-border" aria-hidden="true" />
