@@ -1,62 +1,219 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* ─── Design tokens ─────────────────────────────────────────── */
 @theme {
-  /* Kolory — mapowane na CSS variables */
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Courier New", monospace;
+
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-border: var(--border);
+  --color-border-hi: var(--border-hi);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-mid: var(--accent-mid);
+  --color-accent-border: var(--accent-border);
+
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
-  --color-text-primary: var(--text-primary);
-  --color-text-muted: var(--text-muted);
+  --color-bad: var(--bad);
 
-  /* Fonty */
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  /* ─── Animacje ───────────────────────────────────────────────── */
+  --ease-drawer: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ─── CSS variables per motyw ───────────────────────────────── */
+/* ─── Light mode (default) ──────────────────────────────────────── */
 :root {
-  --background: #fafaf8;
-  --surface: #ffffff;
-  --surface-hover: #f5f2f1;
+  --background: #f5f0e8;
+  --surface: #fdfaf4;
+  --surface-hover: #ede8dc;
 
-  --text-primary: #28231c;
-  --text-muted: #655356;
-  --border: #ddd7d4;
+  --text-primary: #1c1814;
+  --text-muted: #5a5148;
+  --text-faint: #9a9088;
 
-  --accent: #513b3c;
-  --accent-hover: #655356;
+  --border: #d8d2c6;
+  --border-hi: #c4bdb0;
 
-  --success: #2e8b57;
-  --warning: #c27c2c;
-  --info: #5aafcf;
+  --accent: #2a7fa8;
+  --accent-hover: #1a5f84;
+  --accent-bg: #e4f4fb;
+  --accent-mid: #2a7fa8;
+  --accent-border: #a8d8ee;
+
+  --success: #2e7d52;
+  --warning: #a0621a;
+  --info: #2a7fa8;
+  --bad: #a03030;
+
+  --plum: #513b3c;
+  --taupe: #655356;
 }
 
+/* ─── Dark mode — zarządzany przez next-themes (.dark na <html>) ─── */
 .dark {
-  --background: #070707;
-  --surface: #28231c;
-  --surface-hover: #332c24;
+  --background: #0f0c09;
+  --surface: #1a1510;
+  --surface-hover: #241e18;
 
-  --text-primary: #fafafa;
-  --text-muted: #b3a4a6;
-  --border: #513b3c;
+  --text-primary: #ede8e0;
+  --text-muted: #9e9188;
+  --text-faint: #5e564e;
+
+  --border: #2e2720;
+  --border-hi: #403830;
 
   --accent: #c1eeff;
-  --accent-hover: #d8f4ff;
+  --accent-hover: #e8f8ff;
+  --accent-bg: #0d1e2a;
+  --accent-mid: #4a8faa;
+  --accent-border: #1a3d54;
 
-  --success: #4caf72;
+  --success: #6dbfa0;
   --warning: #d9a441;
   --info: #c1eeff;
+  --bad: #c07070;
+
+  --plum: #6b4a4b;
+  --taupe: #655356;
 }
-/* ─── Reset ─────────────────────────────────────────────────── */
+
+/* ─── Reset i typografia bazowa ─────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Płynny rozmiar bazowy: 14px mobile → 16px desktop */
+  font-size: clamp(14px, 1.5vw, 16px);
+  /* Zapobiega zoomowi na iOS przy fokusie inputa */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
 body {
+  background-color: var(--background);
   color: var(--text-primary);
-  background: var(--background);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Bloki kodu — zawsze ciemne niezależnie od motywu ─────────── */
+/* (konwencja: kod źródłowy = terminal, nie zmienia się z motywem)  */
+.code-block-wrap {
+  background: #070707;
+  color: #d0c8b8;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-hi);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Typografia MDX (prose) — nadpisanie domyślnych kolorów ────── */
+/* Tailwind typography plugin używa --tw-prose-* variables          */
+.prose {
+  --tw-prose-body: var(--text-muted);
+  --tw-prose-headings: var(--text-primary);
+  --tw-prose-lead: var(--text-muted);
+  --tw-prose-links: var(--accent);
+  --tw-prose-bold: var(--text-primary);
+  --tw-prose-counters: var(--text-faint);
+  --tw-prose-bullets: var(--border-hi);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--text-primary);
+  --tw-prose-quote-borders: var(--plum);
+  --tw-prose-captions: var(--text-faint);
+  --tw-prose-code: var(--accent);
+  --tw-prose-pre-code: #d0c8b8;
+  --tw-prose-pre-bg: #070707;
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+  max-width: 72ch;
+}
+
+/* ─── Utility: blok kodu w prose zawsze ciemny ─────────────────── */
+.prose pre {
+  background: #070707 !important;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+/* Media queries — breakpointy pomocnicze */
+/*
+   mobile-first w Tailwind:
+  - domyślnie: mobile (< 640px)
+  - sm:  640px+
+  - md:  768px+
+  - lg:  1024px+
+  - xl:  1280px+
+*/
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
