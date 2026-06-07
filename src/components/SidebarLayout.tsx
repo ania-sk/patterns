@@ -6,7 +6,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { X, PanelLeft } from "lucide-react";
-import SolidSidebar from "@/components/SolidSidebar";
+import Sidebar from "@/components/Sidebar";
 import { useSidebar } from "./context/SidebarContext";
 
 interface SidebarLayoutProps {
@@ -55,7 +55,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
         `}
         aria-label="Nawigacja boczna"
       >
-        <SolidSidebar />
+        <Sidebar />
       </aside>
 
       {/* ══ MOBILE: przycisk otwierający szufladę ═══════════════════════════ */}
@@ -121,7 +121,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
 
         {/* Zawartość — ten sam komponent co desktop */}
         <div className="flex-1 overflow-y-auto">
-          <SolidSidebar />
+          <Sidebar />
         </div>
       </aside>
 

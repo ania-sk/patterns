@@ -46,7 +46,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // Główny komponent
 
-export default function SolidSidebar() {
+export default function Sidebar() {
   const pathname = usePathname();
 
   return (
