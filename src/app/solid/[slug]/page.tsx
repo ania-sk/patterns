@@ -4,7 +4,7 @@
 
 import { notFound } from "next/navigation";
 import { getPrinciple, getAdjacentPrinciples } from "@/lib/principles";
-import SolidLayout from "@/components/SolidLayout";
+
 import PrincipleHero from "@/components/PrincipleHero";
 import PrinciplePageClient from "@/components/PrinciplePageClient";
 import Link from "next/link";
@@ -74,14 +74,8 @@ export default async function SolidPrinciplePage({ params }: PageProps) {
   const { prev, next } = getAdjacentPrinciples(slug);
 
   return (
-    <SolidLayout>
-      {/*
-        PrinciplePageClient opakowuje hero + quiz drawer.
-        Jest osobnym komponentem "use client" bo zarządza stanem drawera.
-        Server component (ta strona) nie może mieć useState.
-      */}
+    <>
       <PrinciplePageClient principle={principle}>
-        {/* Treść MDX — renderowana przez Next.js MDX loader */}
         {MdxContent ? (
           <article className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
             <MdxContent />
@@ -91,7 +85,6 @@ export default async function SolidPrinciplePage({ params }: PageProps) {
         )}
       </PrinciplePageClient>
 
-      {/* ── Nawigacja prev/next ── */}
       <nav
         className="mt-12 flex items-center justify-between border-t border-border pt-6"
         aria-label="Poprzednia i następna zasada"
@@ -136,7 +129,7 @@ export default async function SolidPrinciplePage({ params }: PageProps) {
           <div />
         )}
       </nav>
-    </SolidLayout>
+    </>
   );
 }
 
