@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import SidebarLayout from "@/components/SidebarLayout";
+import { SidebarProvider } from "@/components/context/SidebarContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,18 +31,13 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen bg-background font-sans antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <SidebarProvider>
           <Navbar />
           <SidebarLayout>
             <main className="min-h-[calc(100vh-56px)]">{children}</main>
           </SidebarLayout>
           <Footer />
-        </ThemeProvider>
+        </SidebarProvider>
       </body>
     </html>
   );
