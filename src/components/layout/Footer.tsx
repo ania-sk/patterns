@@ -4,7 +4,7 @@ import { Globe, Github } from "lucide-react";
 export default function Footer() {
   return (
     <footer className="border-t border-border">
-      <div className="mx-auto flex h-13 max-w-6xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex h-13 max-w-6xl items-center justify-between px-6 py-12">
         <p className="font-mono text-xs text-text-muted">
           &copy;{new Date().getFullYear()} ania-sk
         </p>
