@@ -7,6 +7,7 @@ import Footer from "@/components/layout/Footer";
 import SidebarLayout from "@/components/SidebarLayout";
 import { SidebarProvider } from "@/components/context/SidebarContext";
 import "./globals.css";
+import "highlight.js/styles/github-dark-dimmed.css";
 
 export const metadata: Metadata = {
   title: {

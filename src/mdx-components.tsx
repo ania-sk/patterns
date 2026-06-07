@@ -1,8 +1,13 @@
 import type { MDXComponents } from "mdx/types";
 import type { ReactNode } from "react";
+import hljs from "highlight.js/lib/core";
+import java from "highlight.js/lib/languages/java";
+
+hljs.registerLanguage("java", java);
 
 type Props = { children?: ReactNode };
 type AnchorProps = { href?: string; children?: ReactNode };
+type CodeProps = { children?: ReactNode; className?: string };
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
@@ -51,16 +56,28 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         </div>
       </blockquote>
     ),
-    code: ({ children }: Props) => (
-      <code className="rounded border border-border bg-surface-hover px-1.5 py-0.5 font-mono text-xs text-accent">
-        {children}
-      </code>
-    ),
-    pre: ({ children }: Props) => (
-      <pre className="my-6 overflow-x-auto rounded border border-border bg-[#070707] p-4 font-mono text-sm leading-relaxed text-[#d0c8b8]">
-        {children}
-      </pre>
-    ),
+    code: ({ children, className }: CodeProps) => {
+      const isBlock = !!className?.includes("language-");
+
+      if (isBlock) {
+        const language = className?.replace("language-", "") ?? "java";
+        const code = String(children).trim();
+        const highlighted = hljs.highlight(code, { language }).value;
+
+        return (
+          <code
+            className={`hljs language-${language}`}
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
+        );
+      }
+
+      return (
+        <code className="rounded border border-border bg-surface-hover px-1.5 py-0.5 font-mono text-xs text-accent">
+          {children}
+        </code>
+      );
+    },
     hr: () => <hr className="my-8 border-border" />,
     a: ({ href, children }: AnchorProps) => (
       <a
