@@ -26,6 +26,7 @@ export default function RootLayout({
       lang="pl"
       className={`${GeistSans.variable} ${GeistMono.variable}`}
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
     >
       <body className="min-h-screen bg-background font-sans antialiased">
         <ThemeProvider
@@ -35,7 +36,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Navbar />
-          <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+          <main className=" max-w-6xl px-6 py-10">{children}</main>
           <Foooter />
         </ThemeProvider>
       </body>
