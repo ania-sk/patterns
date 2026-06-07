@@ -13,7 +13,7 @@ interface SolidLayoutProps {
   children: React.ReactNode;
 }
 
-const SIDEBAR_WIDTH = "w-[220px]";
+const SIDEBAR_WIDTH = "w-[220px] xl:w-[260px]";
 
 export default function SolidLayout({ children }: SolidLayoutProps) {
   const pathname = usePathname();
