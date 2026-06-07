@@ -3,11 +3,11 @@
 // components/SidebarLayout.tsx
 // Layout dla sekcji /solid i /patterns.
 // Odpowiedzialność: grid desktop + szuflada sidebar na mobile.
-
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { X, PanelLeft } from "lucide-react";
 import SolidSidebar from "@/components/SolidSidebar";
+import { useSidebar } from "./context/SidebarContext";
 
 interface SidebarLayoutProps {
   children: React.ReactNode;
@@ -17,13 +17,11 @@ const SIDEBAR_WIDTH = "w-[220px] xl:w-[260px]";
 
 export default function SidebarLayout({ children }: SidebarLayoutProps) {
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
-
+  const { isOpen: sidebarOpen, close: closeSidebar } = useSidebar();
   // Zamknij szufladę po zmianie strony
   useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    setSidebarOpen(false);
+    closeSidebar();
   }, [pathname]);
 
   // Zablokuj scroll body gdy szuflada otwarta
@@ -38,7 +36,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
   useEffect(() => {
     if (!sidebarOpen) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSidebarOpen(false);
+      if (e.key === "Escape") closeSidebar();
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
@@ -63,7 +61,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
       {/* ══ MOBILE: przycisk otwierający szufladę ═══════════════════════════ */}
       {/* Widoczny tylko poniżej lg */}
       <button
-        onClick={() => setSidebarOpen(true)}
+        onClick={() => useSidebar().open}
         className="
           fixed bottom-5 left-4 z-40
           flex items-center gap-2
