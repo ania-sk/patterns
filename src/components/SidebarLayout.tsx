@@ -1,6 +1,6 @@
 "use client";
 
-// components/SolidLayout.tsx
+// components/SidebarLayout.tsx
 // Layout dla sekcji /solid i /patterns.
 // Odpowiedzialność: grid desktop + szuflada sidebar na mobile.
 
@@ -9,13 +9,13 @@ import { usePathname } from "next/navigation";
 import { X, PanelLeft } from "lucide-react";
 import SolidSidebar from "@/components/SolidSidebar";
 
-interface SolidLayoutProps {
+interface SidebarLayoutProps {
   children: React.ReactNode;
 }
 
 const SIDEBAR_WIDTH = "w-[220px] xl:w-[260px]";
 
-export default function SolidLayout({ children }: SolidLayoutProps) {
+export default function SidebarLayout({ children }: SidebarLayoutProps) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
