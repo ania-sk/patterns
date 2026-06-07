@@ -31,13 +31,20 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen bg-background font-sans antialiased">
-        <SidebarProvider>
-          <Navbar />
-          <SidebarLayout>
-            <main className="min-h-[calc(100vh-56px)]">{children}</main>
-          </SidebarLayout>
-          <Footer />
-        </SidebarProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SidebarProvider>
+            <Navbar />
+            <SidebarLayout>
+              <main className="min-h-[calc(100vh-56px)]">{children}</main>
+            </SidebarLayout>
+            <Footer />
+          </SidebarProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
