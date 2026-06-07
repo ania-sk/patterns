@@ -4,6 +4,7 @@ import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "next-themes";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import SolidLayout from "@/components/SolidLayout";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,7 +37,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Navbar />
-          <main className="min-h-[calc(100vh-56px)]">{children}</main>
+          <SolidLayout>
+            <main className="min-h-[calc(100vh-56px)]">{children}</main>
+          </SolidLayout>
           <Footer />
         </ThemeProvider>
       </body>
