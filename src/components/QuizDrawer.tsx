@@ -96,14 +96,14 @@ export default function QuizDrawer({
     setCurrent(0);
     setResults([]);
     setQuestions([]);
+    setShowResults(false);
     setState("idle");
   }
 
   const isLastQuestion = current === questions.length - 1;
   const currentAnswered = results.length > current;
-  const allAnswered =
-    results.length === questions.length && questions.length > 0;
   const score = results.filter(Boolean).length;
+  const [showResults, setShowResults] = useState(false);
 
   return (
     <>
@@ -198,7 +198,7 @@ export default function QuizDrawer({
           )}
 
           {/* Pytanie */}
-          {state === "ready" && !allAnswered && questions[current] && (
+          {state === "ready" && !showResults && questions[current] && (
             <QuizQuestion
               key={current}
               question={questions[current]}
@@ -209,7 +209,7 @@ export default function QuizDrawer({
           )}
 
           {/* Wynik końcowy */}
-          {state === "ready" && allAnswered && (
+          {state === "ready" && showResults && (
             <div className="flex flex-col items-center gap-6 py-10">
               <div className="text-center">
                 <p className="font-mono text-4xl font-bold text-text-primary">
@@ -234,19 +234,16 @@ export default function QuizDrawer({
         </div>
 
         {/* ── Footer z przyciskiem Następne ── */}
-        {state === "ready" &&
-          !allAnswered &&
-          currentAnswered &&
-          !isLastQuestion && (
-            <div className="shrink-0 border-t border-border px-5 py-4">
-              <button
-                onClick={handleNext}
-                className="w-full rounded border border-accent bg-accent px-4 py-2 font-mono text-xs font-bold text-background transition-opacity hover:opacity-85"
-              >
-                Następne →
-              </button>
-            </div>
-          )}
+        {state === "ready" && !showResults && currentAnswered && (
+          <div className="shrink-0 border-t border-border px-5 py-4">
+            <button
+              onClick={isLastQuestion ? () => setShowResults(true) : handleNext}
+              className="w-full rounded border border-accent bg-accent px-4 py-2 font-mono text-xs font-bold text-background transition-opacity hover:opacity-85"
+            >
+              {isLastQuestion ? "Zobacz wynik →" : "Następne →"}
+            </button>
+          </div>
+        )}
       </aside>
     </>
   );
