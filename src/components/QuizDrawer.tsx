@@ -200,6 +200,7 @@ export default function QuizDrawer({
           {/* Pytanie */}
           {state === "ready" && !allAnswered && questions[current] && (
             <QuizQuestion
+              key={current}
               question={questions[current]}
               index={current}
               total={questions.length}

@@ -12,6 +12,7 @@ export interface Question {
   id: number;
   type: string;
   question: string;
+  code?: string | null;
   options: QuizOption[];
   correct: string;
   explanation: string;
@@ -68,6 +69,13 @@ export default function QuizQuestion({
       <p className="font-mono text-sm font-bold leading-snug text-text-primary">
         {question.question}
       </p>
+
+      {/* Przykład kodu — widoczny tylko dla pytań typu "code" */}
+      {question.code && (
+        <pre className="overflow-x-auto rounded border border-border bg-[#070707] p-3 font-mono text-xs leading-relaxed text-[#d0c8b8]">
+          <code>{question.code}</code>
+        </pre>
+      )}
 
       {/* Opcje */}
       <ul className="flex flex-col gap-2" role="list">

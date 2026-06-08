@@ -38,7 +38,11 @@ export async function POST(req: NextRequest) {
     const text = data.choices[0].message.content;
 
     const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+    const sanitized = clean.replace(
+      /"code"\s*:\s*"([\s\S]*?)"/g,
+      (match: string) => match.replace(/\n/g, "\\n").replace(/\t/g, "\\t"),
+    );
+    const parsed = JSON.parse(sanitized);
 
     return NextResponse.json(parsed);
   } catch (error) {
