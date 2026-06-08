@@ -10,14 +10,25 @@ import PrinciplePageClient from "@/components/PrinciplePageClient";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
-
-// ─── Typy ────────────────────────────────────────────────────────────────────
+import fs from "fs";
+import path from "path";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-// ─── Generowanie statycznych ścieżek ─────────────────────────────────────────
+function getMdxRawContent(slug: string): string {
+  try {
+    const filePath = path.join(
+      process.cwd(),
+      "src/content/solid",
+      `${slug}.mdx`,
+    );
+    return fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
 
 export function generateStaticParams() {
   return [
@@ -28,8 +39,6 @@ export function generateStaticParams() {
     { slug: "dip" },
   ];
 }
-
-// ─── Metadane strony ──────────────────────────────────────────────────────────
 
 export async function generateMetadata({
   params,
@@ -62,7 +71,7 @@ async function getMdxContent(slug: string) {
 export default async function SolidPrinciplePage({ params }: PageProps) {
   const { slug } = await params;
   const principle = getPrinciple(slug);
-
+  const content = getMdxRawContent(slug);
   // Nieznany slug → 404
   if (!principle) notFound();
 
@@ -75,7 +84,7 @@ export default async function SolidPrinciplePage({ params }: PageProps) {
 
   return (
     <>
-      <PrinciplePageClient principle={principle}>
+      <PrinciplePageClient principle={principle} content={content}>
         {MdxContent ? (
           <article className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
             <MdxContent />

@@ -61,7 +61,8 @@ export default function QuizDrawer({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, state, slug, content]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Zablokuj scroll body gdy drawer otwarty
   useEffect(() => {
