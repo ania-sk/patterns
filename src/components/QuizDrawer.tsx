@@ -95,9 +95,7 @@ export default function QuizDrawer({
   function handleRestart() {
     setCurrent(0);
     setResults([]);
-    setQuestions([]);
     setShowResults(false);
-    setState("idle");
   }
 
   const isLastQuestion = current === questions.length - 1;
@@ -209,6 +207,7 @@ export default function QuizDrawer({
           )}
 
           {/* Wynik końcowy */}
+          {/* Wynik końcowy */}
           {state === "ready" && showResults && (
             <div className="flex flex-col items-center gap-6 py-10">
               <div className="text-center">
@@ -223,12 +222,34 @@ export default function QuizDrawer({
                       : "Wróć do notatek"}
                 </p>
               </div>
-              <button
-                onClick={handleRestart}
-                className="rounded border border-border px-4 py-2 font-mono text-xs text-text-muted transition-colors hover:border-accent hover:text-accent"
-              >
-                Spróbuj ponownie
-              </button>
+
+              <div className="flex flex-col gap-2 w-full">
+                {/* Te same pytania — tylko reset postępu */}
+                <button
+                  onClick={() => {
+                    setCurrent(0);
+                    setResults([]);
+                    setShowResults(false);
+                  }}
+                  className="w-full rounded border border-accent bg-accent px-4 py-2 font-mono text-xs font-bold text-background transition-opacity hover:opacity-85"
+                >
+                  Spróbuj ponownie
+                </button>
+
+                {/* Nowe pytania — pełny reset */}
+                <button
+                  onClick={() => {
+                    setCurrent(0);
+                    setResults([]);
+                    setQuestions([]);
+                    setShowResults(false);
+                    setState("idle");
+                  }}
+                  className="w-full rounded border border-border px-4 py-2 font-mono text-xs text-text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  Nowy quiz
+                </button>
+              </div>
             </div>
           )}
         </div>
