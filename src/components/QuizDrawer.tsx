@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import QuizQuestion, { type Question } from "@/components/QuizQuestion";
 
+// ─── Typy ────────────────────────────────────────────────────────────────────
+
 interface QuizDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,6 +18,8 @@ interface QuizDrawerProps {
 }
 
 type DrawerState = "idle" | "loading" | "ready" | "error";
+
+// ─── Komponent ───────────────────────────────────────────────────────────────
 
 export default function QuizDrawer({
   isOpen,
@@ -27,7 +31,10 @@ export default function QuizDrawer({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [current, setCurrent] = useState(0);
   const [results, setResults] = useState<boolean[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
+  // ── Fetch pytań ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || state !== "idle") return;
 
@@ -62,9 +69,9 @@ export default function QuizDrawer({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, fetchTrigger]);
 
-  // Zablokuj scroll body gdy drawer otwarty
+  // ── Zablokuj scroll body gdy drawer otwarty ──────────────────────────────
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
     return () => {
@@ -72,7 +79,7 @@ export default function QuizDrawer({
     };
   }, [isOpen]);
 
-  // Zamknij na Escape
+  // ── Zamknij na Escape ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -81,6 +88,8 @@ export default function QuizDrawer({
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
+
+  // ── Handlery ─────────────────────────────────────────────────────────────
 
   function handleAnswer(correct: boolean) {
     setResults((prev) => [...prev, correct]);
@@ -92,16 +101,13 @@ export default function QuizDrawer({
     }
   }
 
-  function handleRestart() {
-    setCurrent(0);
-    setResults([]);
-    setShowResults(false);
-  }
+  // ── Wartości pochodne ─────────────────────────────────────────────────────
 
   const isLastQuestion = current === questions.length - 1;
   const currentAnswered = results.length > current;
   const score = results.filter(Boolean).length;
-  const [showResults, setShowResults] = useState(false);
+
+  // ─── JSX ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -187,7 +193,7 @@ export default function QuizDrawer({
                 Nie udało się wygenerować pytań.
               </p>
               <button
-                onClick={handleRestart}
+                onClick={() => setState("idle")}
                 className="font-mono text-xs text-accent underline underline-offset-4"
               >
                 Spróbuj ponownie
@@ -206,7 +212,6 @@ export default function QuizDrawer({
             />
           )}
 
-          {/* Wynik końcowy */}
           {/* Wynik końcowy */}
           {state === "ready" && showResults && (
             <div className="flex flex-col items-center gap-6 py-10">
@@ -236,7 +241,7 @@ export default function QuizDrawer({
                   Spróbuj ponownie
                 </button>
 
-                {/* Nowe pytania — pełny reset */}
+                {/* Nowe pytania — pełny reset + nowe wywołanie API */}
                 <button
                   onClick={() => {
                     setCurrent(0);
@@ -244,6 +249,7 @@ export default function QuizDrawer({
                     setQuestions([]);
                     setShowResults(false);
                     setState("idle");
+                    setFetchTrigger((n) => n + 1);
                   }}
                   className="w-full rounded border border-border px-4 py-2 font-mono text-xs text-text-muted transition-colors hover:border-accent hover:text-accent"
                 >
@@ -254,7 +260,7 @@ export default function QuizDrawer({
           )}
         </div>
 
-        {/* ── Footer z przyciskiem Następne ── */}
+        {/* ── Footer z przyciskiem Następne / Zobacz wynik ── */}
         {state === "ready" && !showResults && currentAnswered && (
           <div className="shrink-0 border-t border-border px-5 py-4">
             <button
