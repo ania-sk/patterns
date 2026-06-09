@@ -8,6 +8,7 @@ import SidebarLayout from "@/components/SidebarLayout";
 import { SidebarProvider } from "@/components/context/SidebarContext";
 import "./globals.css";
 import "highlight.js/styles/github-dark-dimmed.css";
+import { QuizProvider } from "@/components/context/QuizContext";
 
 export const metadata: Metadata = {
   title: {
@@ -39,11 +40,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <SidebarProvider>
-            <Navbar />
-            <SidebarLayout>
-              <main className="min-h-[calc(100vh-56px)]">{children}</main>
-            </SidebarLayout>
-            <Footer />
+            <QuizProvider>
+              <Navbar />
+              <SidebarLayout>
+                <main className="min-h-[calc(100vh-56px)]">{children}</main>
+              </SidebarLayout>
+              <Footer />
+            </QuizProvider>
           </SidebarProvider>
         </ThemeProvider>
       </body>

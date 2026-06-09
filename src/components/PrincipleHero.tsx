@@ -75,7 +75,7 @@ export default function PrincipleHero({
               bg-transparent px-3 py-1.5
               font-mono text-xs text-text-muted
               transition-colors
-              hover:border-accent hover:bg-accent-bg hover:text-accent
+              hover:border-accent hover:bg-accent-bg hover:text-accent cursor-pointer
               focus-visible:outline-accent
             "
             aria-label="Otwórz quiz do tej zasady"

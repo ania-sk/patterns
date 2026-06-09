@@ -1,12 +1,11 @@
 "use client";
 
-// Odpowiedzialność: zarządzanie stanem drawera quizu.
-// Łączy PrincipleHero (przycisk) z QuizDrawer (panel).
-// Treść MDX dostaje jako children — nie wie co to jest.
+// Odpowiedzialność: pomost między PrincipleHero a QuizContext.
+// Nie zarządza stanem quizu — deleguje to do useQuiz().
 
-import { useState } from "react";
 import PrincipleHero from "@/components/PrincipleHero";
 import QuizDrawer from "@/components/QuizDrawer";
+import { useQuiz } from "@/components/context/QuizContext";
 import { type Principle } from "@/lib/principles";
 
 interface PrinciplePageClientProps {
@@ -20,22 +19,20 @@ export default function PrinciplePageClient({
   content,
   children,
 }: PrinciplePageClientProps) {
-  const [quizOpen, setQuizOpen] = useState(false);
+  const { isOpen, open, close } = useQuiz();
 
   return (
     <>
       <PrincipleHero
         principle={principle}
-        onQuizOpen={() => setQuizOpen(true)}
+        onQuizOpen={() => open(principle.slug, content)}
       />
 
-      {/* Treść MDX */}
       {children}
 
-      {/* Quiz Drawer */}
       <QuizDrawer
-        isOpen={quizOpen}
-        onClose={() => setQuizOpen(false)}
+        isOpen={isOpen}
+        onClose={close}
         slug={principle.slug}
         content={content}
       />

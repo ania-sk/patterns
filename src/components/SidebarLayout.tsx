@@ -8,18 +8,26 @@ import { usePathname } from "next/navigation";
 import { X, PanelLeft } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { useSidebar } from "./context/SidebarContext";
+import { useQuiz } from "@/components/context/QuizContext";
 
 interface SidebarLayoutProps {
   children: React.ReactNode;
 }
 
-const SIDEBAR_WIDTH = "w-[220px] xl:w-[260px]";
+const SIDEBAR_WIDTH = "w-[280px] xl:w-[300px]";
 
 export default function SidebarLayout({ children }: SidebarLayoutProps) {
   const pathname = usePathname();
-  const { isOpen: sidebarOpen, close: closeSidebar } = useSidebar();
-  // Zamknij szufladę po zmianie strony
+  const {
+    isOpen: sidebarOpen,
+    close: closeSidebar,
+    open: openSidebar,
+  } = useSidebar();
+  const { dismiss } = useQuiz();
+
+  // Zamknij szufladę i quiz po zmianie strony
   useEffect(() => {
+    dismiss();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     closeSidebar();
   }, [pathname]);
@@ -61,7 +69,7 @@ export default function SidebarLayout({ children }: SidebarLayoutProps) {
       {/* ══ MOBILE: przycisk otwierający szufladę ═══════════════════════════ */}
       {/* Widoczny tylko poniżej lg */}
       <button
-        onClick={() => useSidebar().open}
+        onClick={openSidebar}
         className="
           fixed bottom-5 left-4 z-40
           flex items-center gap-2

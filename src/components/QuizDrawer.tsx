@@ -144,7 +144,7 @@ export default function QuizDrawer({
         aria-modal="true"
         className={[
           "fixed inset-y-0 right-0 z-50",
-          "flex w-full flex-col sm:w-[400px]",
+          "flex w-full flex-col sm:w-[400px] xl:w-[600px]",
           "border-l border-border bg-surface",
           "shadow-2xl",
           "transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
