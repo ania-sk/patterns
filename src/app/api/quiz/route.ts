@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildQuizPrompt } from "@/lib/quizPrompt";
 
+// Tasuje opcje pytania i aktualizuje pole correct
+function shuffleOptions(
+  questions: {
+    id: number;
+    type: string;
+    question: string;
+    code?: string | null;
+    options: { key: string; text: string }[];
+    correct: string;
+    explanation: string;
+  }[],
+) {
+  return questions.map((q) => {
+    const correctOption = q.options.find((o) => o.key === q.correct);
+    const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+    const keys = ["A", "B", "C"];
+    const remapped = shuffled.map((opt, i) => ({
+      key: keys[i],
+      text: opt.text,
+    }));
+    const newCorrect =
+      keys[shuffled.findIndex((o) => o.text === correctOption?.text)];
+    return { ...q, options: remapped, correct: newCorrect };
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { slug, content } = await req.json();
@@ -42,7 +68,9 @@ export async function POST(req: NextRequest) {
       /"code"\s*:\s*"([\s\S]*?)"/g,
       (match: string) => match.replace(/\n/g, "\\n").replace(/\t/g, "\\t"),
     );
+
     const parsed = JSON.parse(sanitized);
+    parsed.questions = shuffleOptions(parsed.questions);
 
     return NextResponse.json(parsed);
   } catch (error) {

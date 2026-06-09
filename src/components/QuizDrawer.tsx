@@ -16,8 +16,23 @@ interface QuizDrawerProps {
   slug: string;
   content: string;
 }
-
+// ─── Helpery ─────────────────────────────────────────────────────────────────
 type DrawerState = "idle" | "loading" | "ready" | "error";
+
+function shuffleQuestions(qs: Question[]): Question[] {
+  return qs.map((q) => {
+    const correctOption = q.options.find((o) => o.key === q.correct);
+    const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+    const keys = ["A", "B", "C"];
+    const remapped = shuffled.map((opt, i) => ({
+      key: keys[i],
+      text: opt.text,
+    }));
+    const newCorrect =
+      keys[shuffled.findIndex((o) => o.text === correctOption?.text)];
+    return { ...q, options: remapped, correct: newCorrect };
+  });
+}
 
 // ─── Komponent ───────────────────────────────────────────────────────────────
 
@@ -33,6 +48,7 @@ export default function QuizDrawer({
   const [results, setResults] = useState<boolean[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [fetchTrigger, setFetchTrigger] = useState(0);
+  const [originalQuestions, setOriginalQuestions] = useState<Question[]>([]);
 
   // ── Fetch pytań ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -55,7 +71,8 @@ export default function QuizDrawer({
         const data = await res.json();
 
         if (!cancelled) {
-          setQuestions(data.questions);
+          setOriginalQuestions(data.questions);
+          setQuestions(shuffleQuestions(data.questions));
           setState("ready");
         }
       } catch {
@@ -235,6 +252,7 @@ export default function QuizDrawer({
                     setCurrent(0);
                     setResults([]);
                     setShowResults(false);
+                    setQuestions(shuffleQuestions(originalQuestions));
                   }}
                   className="w-full rounded border border-accent bg-accent px-4 py-2 font-mono text-xs font-bold text-background transition-opacity hover:opacity-85"
                 >
