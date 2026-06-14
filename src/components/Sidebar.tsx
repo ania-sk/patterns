@@ -34,7 +34,7 @@ function StatusBadge({ status }: { status: Status }) {
   );
 }
 
-//  Sekcja label 
+//  Sekcja label
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -126,12 +126,12 @@ export default function Sidebar() {
       </ul>
 
       {/* ── Wzorce projektowe ── */}
-      {patternGroups.map(({ label, patterns }) => (
+      {patternGroups.map(({ label, categorySlug, patterns }) => (
         <div key={label}>
           <SectionLabel>{label}</SectionLabel>
           <ul role="list">
             {patterns.map(({ slug, name, status }) => {
-              const href = `/patterns/${slug}`;
+              const href = `/patterns/${categorySlug}/${slug}`;
               const active = pathname === href;
               const disabled = status === "todo";
 

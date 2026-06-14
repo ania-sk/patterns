@@ -11,6 +11,7 @@ export interface Principle {
 
 export interface PatternGroup {
   label: string;
+  categorySlug: "creational" | "structural" | "behavioral";
   patterns: Pattern[];
 }
 
@@ -69,9 +70,10 @@ export const principles: Principle[] = [
 export const patternGroups: PatternGroup[] = [
   {
     label: "Wzorce kreacyjne",
+    categorySlug: "creational",
     patterns: [
-      { slug: "singleton", name: "Singleton", status: "todo" },
-      { slug: "builder", name: "Builder", status: "todo" },
+      { slug: "singleton", name: "Singleton", status: "in-progress" },
+      { slug: "builder", name: "Builder", status: "in-progress" },
       { slug: "factory-method", name: "Factory Method", status: "todo" },
       { slug: "abstract-factory", name: "Abstract Factory", status: "todo" },
       { slug: "prototype", name: "Prototype", status: "todo" },
@@ -79,6 +81,7 @@ export const patternGroups: PatternGroup[] = [
   },
   {
     label: "Wzorce strukturalne",
+    categorySlug: "structural",
     patterns: [
       { slug: "adapter", name: "Adapter", status: "todo" },
       { slug: "decorator", name: "Decorator", status: "todo" },
@@ -88,6 +91,7 @@ export const patternGroups: PatternGroup[] = [
   },
   {
     label: "Wzorce behawioralne",
+    categorySlug: "behavioral",
     patterns: [
       { slug: "observer", name: "Observer", status: "todo" },
       { slug: "strategy", name: "Strategy", status: "todo" },
@@ -121,3 +125,47 @@ export const statusLabel: Record<Status, string> = {
   "in-progress": "w trakcie",
   todo: "wkrótce",
 };
+// ─── Helpery dla wzorców ──────────────────────────────────────────────────────
+
+/** Zwraca wzorzec i jego kategorię na podstawie sluga */
+export function getPattern(
+  category: string,
+  slug: string,
+): { pattern: Pattern; group: PatternGroup } | undefined {
+  const group = patternGroups.find((g) =>
+    g.patterns.some((p) => p.slug === slug),
+  );
+  if (!group) return undefined;
+  const pattern = group.patterns.find((p) => p.slug === slug);
+  if (!pattern) return undefined;
+  return { pattern, group };
+}
+
+/** Zwraca poprzedni i następny wzorzec w tej samej kategorii */
+export function getAdjacentPatterns(
+  category: string,
+  slug: string,
+): { prev: Pattern | null; next: Pattern | null } {
+  const group = patternGroups.find((g) =>
+    g.patterns.some((p) => p.slug === slug),
+  );
+  if (!group) return { prev: null, next: null };
+  const idx = group.patterns.findIndex((p) => p.slug === slug);
+  return {
+    prev: idx > 0 ? group.patterns[idx - 1] : null,
+    next: idx < group.patterns.length - 1 ? group.patterns[idx + 1] : null,
+  };
+}
+
+/** Zwraca slug kategorii na podstawie sluga wzorca */
+export function getCategorySlug(patternSlug: string): string | undefined {
+  const categoryMap: Record<string, string> = {
+    "Wzorce kreacyjne": "creational",
+    "Wzorce strukturalne": "structural",
+    "Wzorce behawioralne": "behavioral",
+  };
+  const group = patternGroups.find((g) =>
+    g.patterns.some((p) => p.slug === patternSlug),
+  );
+  return group ? categoryMap[group.label] : undefined;
+}
