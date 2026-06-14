@@ -4,7 +4,6 @@ import { GeistSans } from "geist/font/sans";
 import { ThemeProvider } from "next-themes";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import SidebarLayout from "@/components/SidebarLayout";
 import { SidebarProvider } from "@/components/context/SidebarContext";
 import "./globals.css";
 import "highlight.js/styles/github-dark-dimmed.css";
@@ -42,9 +41,9 @@ export default function RootLayout({
           <SidebarProvider>
             <QuizProvider>
               <Navbar />
-              <SidebarLayout>
-                <main className="min-h-[calc(100vh-56px)]">{children}</main>
-              </SidebarLayout>
+
+              {children}
+
               <Footer />
             </QuizProvider>
           </SidebarProvider>
