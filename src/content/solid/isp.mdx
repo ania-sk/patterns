@@ -1,0 +1,343 @@
+## 1. Definicja
+
+**Interface Segregation Principle** mówi, że żadna klasa nie powinna być zmuszana do implementowania metod, których nie używa.
+
+> Clients should not be forced to depend upon interfaces that they do not use.
+> — Robert C. Martin
+
+Najprościej rzecz ujmując: **wiele małych, wyspecjalizowanych interfejsów jest lepsze niż jeden duży, ogólny.**
+
+Jeżeli implementując interfejs, klasa musi zdefiniować metody, które są dla niej bez sensu to znak, że interfejs jest zbyt szeroki i narusza ISP.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że jesteśmy nowym pracownikiem i podpisujemy umowę o pracę.
+Ale zamiast standardowej umowy na stanowisko programisty, HR wręcza nam kontrakt, który zobowiązuje nas do:
+
+- pisania kodu,
+- sprzątania biura,
+- prowadzenia szkoleń BHP,
+- obsługi recepcji,
+- naprawy kserokopiarki.
+
+Oczywiście, możemy podpisać, ale co z obowiązkami, które nas nie dotyczą? Co zrobimy z paragrafem o kserokopiarce,
+skoro nigdy jej nie dotknęliśmy? Musimy ten paragraf jakoś obsłużyć, najczęściej zostawiamy go pustym albo piszemy: „nie dotyczy".
+
+I właśnie tutaj pojawia się problem, bo kontrakt mówi, że _jesteśmy za to odpowiedzialni_, nawet jeśli tego nie robimy.
+
+W programowaniu jest identycznie.
+
+Gdy klasa implementuje interfejs, **zobowiązuje się** do dostarczenia implementacji **wszystkich**
+jego metod. Jeśli interfejs jest za szeroki, klasa musi coś zrobić z metodami, które jej nie dotyczą,
+najczęściej rzuca wyjątkiem lub zostawia puste ciało metody. To jest właśnie naruszenie ISP.
+
+Zamiast jednego „kontraktu na wszystko", lepiej mieć kilka wyspecjalizowanych umów:
+
+- umowę dla osoby, która będzie programować (pisanie kodu, code review),
+- umowę dla osoby, która będzie sprzątać (sprzątanie, porządek),
+- umowę dla osby, która zajmie się recepcją (obsługa gości, telefony).
+
+Każdy podpisuje tylko to, co naprawdę robi. Żaden paragraf nie jest pusty ani pozorowany.
+
+Ćwiczenie myślowe: pomyślmy teraz o tym w kontekście systemu dla pracowników.
+Co się stanie, jeśli zaprojektujemy jeden ogólny interfejs `Pracownik` z metodami dla każdego rodzaju roli? Zobaczmy to na kodzie.
+
+---
+
+## 3. Przykład — naruszenie ISP
+
+Wyobraźmy sobie, że budujemy system do zarządzania pracownikami fabryki. W fabryce mamy trzy typy pracowników:
+
+- **pracownika produkcji**, który pracuje na hali i obsługuje maszyny,
+- **managera**, który prowadzi spotkania i zarządza zespołem,
+- **robota przemysłowego**, który wykonuje pracę na linii produkcyjnej, ale nie je ani nie odpoczywa.
+
+W pierwszym podejściu tworzymy jeden, ogólny interfejs dla wszystkich:
+
+```java
+// Jeden "wielki kontrakt" dla każdego pracownika w fabryce
+interface Pracownik {
+
+    // Każdy pracownik może pracować
+    void pracuj();
+
+    // Każdy pracownik idzie na przerwę obiadową
+    void zrobPrzerwęObiadową();
+
+    // Każdy pracownik uczestniczy w spotkaniach zarządu
+    void uczestniczWSpotakniuZarządu();
+}
+```
+
+Teraz implementujemy klasy dla każdego rodzaju pracownika:
+
+```java
+// Pracownik produkcji - implementuje wszystkie metody interfejsu
+class PracownikProdukcji implements Pracownik {
+
+    @Override
+    public void pracuj() {
+        System.out.println("Obsługuję maszynę na hali produkcyjnej.");
+    }
+
+    @Override
+    public void zrobPrzerwęObiadową() {
+        System.out.println("Idę do stołówki na obiad.");
+    }
+
+    @Override
+    public void uczestniczWSpotakniuZarządu() {
+        // Problem: pracownik produkcji nie chodzi na spotkania zarządu!
+        // Musimy coś tu napisać, bo interfejs nas do tego zmusza.
+        throw new UnsupportedOperationException("Pracownik produkcji nie uczestniczy w spotkaniach zarządu!");
+    }
+}
+```
+
+```java
+// Robot przemysłowy - maszyna, która nie je i nie chodzi na spotkania
+class Robot implements Pracownik {
+
+    @Override
+    public void pracuj() {
+        System.out.println("Wykonuję zadania na linii montażowej.");
+    }
+
+    @Override
+    public void zrobPrzerwęObiadową() {
+        // Problem: robot nie je! Ta metoda nie ma tu żadnego sensu.
+        throw new UnsupportedOperationException("Robot nie potrzebuje przerwy obiadowej!");
+    }
+
+    @Override
+    public void uczestniczWSpotakniuZarządu() {
+        // Problem: robot też nie chodzi na spotkania zarządu.
+        throw new UnsupportedOperationException("Robot nie uczestniczy w spotkaniach!");
+    }
+}
+```
+
+```java
+// Manager - uczestniczy w spotkaniach, ale nie pracuje na hali
+class Manager implements Pracownik {
+
+    @Override
+    public void pracuj() {
+        // Managerowie nie obsługują maszyn...
+        // Musimy coś tu napisać, bo interfejs wymaga tej metody.
+        System.out.println("Przeglądam raporty i zarządzam zespołem.");
+    }
+
+    @Override
+    public void zrobPrzerwęObiadową() {
+        System.out.println("Idę na lunch z klientem.");
+    }
+
+    @Override
+    public void uczestniczWSpotakniuZarządu() {
+        System.out.println("Prowadzę spotkanie kwartalne z zarządem.");
+    }
+}
+```
+
+Co jest złego w tym podejściu? Mamy kilka konkretnych problemów:
+
+**Klasy rzucają wyjątkami dla metod, których nie wspierają.** `Robot` implementuje `zrobPrzerwęObiadową()`, ale jedyne sensowne,
+co może zrobić, to rzucić wyjątek. Każdy, kto wywoła tę metodę, dostanie błąd w czasie działania programu, zamiast błędu widocznego już na etapie kompilacji.
+
+**Interfejs kłamie.** Ktoś, kto widzi `Robot implements Pracownik`, zakłada, że robot potrafi robić przerwę obiadową.
+To fałszywe założenie, które może prowadzić do trudnych do wykrycia błędów.
+
+**Zmiana interfejsu niszczy wszystkich.** Jeśli dodamy metodę `podpisUmowęZwiązkową()` do interfejsu `Pracownik`,
+_każda_ klasa, łącznie z `Robot`, musi tę metodę zaimplementować, nawet jeśli robot nigdy nie podpisze żadnej umowy.
+
+```
+DIAGRAM: naruszenie ISP
+
+         ┌──────────────────────────┐
+         │        Pracownik         │
+         │──────────────────────────│
+         │ + pracuj()               │
+         │ + zrobPrzerwęObiadową()  │
+         │ + uczestniczWSpotkaniu() │
+         └──────────┬───────────────┘
+                    │ implements
+       ┌────────────┼────────────┐
+       ▼            ▼            ▼
+┌───────────┐  ┌───────────┐  ┌───────────┐
+│ Pracownik │  │  Manager  │  │  Robot    │
+│ Produkcji │  │           │  │           │
+│───────────│  │───────────│  │───────────│
+│ pracuj()  │  │ pracuj()  │  │ pracuj()  │
+│ przerwa() │  │ przerwa() │  │ przerwa() │ ← 💥 bez sensu
+│spotkanie()│  │spotkanie()│  │spotkanie()│ ← 💥 bez sensu
+│ (BŁĄD!)   │  │           │  │ (BŁĄD!)   │
+└───────────┘  └───────────┘  └───────────┘
+```
+
+---
+
+## 4. Przykład — zgodny z ISP
+
+Podejdźmy do tego lepiej. Zamiast jednego grubego kontraktu, stwórzmy kilka mniejszych, wyspecjalizowanych interfejsów,
+każdy opisujący osobną _zdolność_:
+
+```java
+// Interfejs dla każdego, kto potrafi pracować
+interface Pracowalny {
+    void pracuj();
+}
+
+// Interfejs dla każdego, kto je posiłki, tylko ludzie, nie maszyny
+interface Jadalny {
+    void zrobPrzerwęObiadową();
+}
+
+// Interfejs dla każdego, kto uczestniczy w spotkaniach zarządu
+interface Zarządzalny {
+    void uczestniczWSpotakniuZarządu();
+}
+```
+
+Teraz każda klasa implementuje _tylko te interfejsy, które faktycznie jej dotyczą_:
+
+```java
+// Pracownik produkcji: pracuje i je, ale nie zarządza
+class PracownikProdukcji implements Pracowalny, Jadalny {
+
+    @Override
+    public void pracuj() {
+        System.out.println("Obsługuję maszynę na hali produkcyjnej.");
+    }
+
+    @Override
+    public void zrobPrzerwęObiadową() {
+        System.out.println("Idę do stołówki na obiad.");
+    }
+    // Brak metody uczestniczWSpotkaniu — i słusznie! Nie jest tu potrzebna.
+}
+```
+
+```java
+// Robot: tylko pracuje, nie je, nie chodzi na spotkania
+class Robot implements Pracowalny {
+
+    @Override
+    public void pracuj() {
+        System.out.println("Wykonuję zadania na linii montażowej.");
+    }
+    // Żadnych zbędnych metod. Robot robi dokładnie to, co do niego należy.
+}
+```
+
+```java
+// Manager: je i zarządza, ale nie obsługuje maszyn
+class Manager implements Jadalny, Zarządzalny {
+
+    @Override
+    public void zrobPrzerwęObiadową() {
+        System.out.println("Idę na lunch z klientem.");
+    }
+
+    @Override
+    public void uczestniczWSpotakniuZarządu() {
+        System.out.println("Prowadzę spotkanie kwartalne z zarządem.");
+    }
+}
+```
+
+Zobaczmy, co zmieniliśmy i dlaczego każda z tych decyzji ma sens:
+
+**Żadnych rzucanych wyjątków.** Robot nie ma metody `zrobPrzerwęObiadową()`, więc nikt jej przez przypadek nie wywoła.
+Błąd jest niemożliwy, nie ma metody, którą można niepoprawnie użyć.
+
+**Interfejsy są prawdomówne.** Jeśli klasa implementuje `Jadalny`, naprawdę potrafi jeść. Jeśli implementuje `Pracowalny`, naprawdę pracuje.
+Kontrakt jest uczciwy.
+
+**Zmiany są bezpieczne.** Dodanie nowej metody do `Zarządzalny` dotknie tylko `Manager`a,
+nie zmusi `Robot`a ani `PracownikProdukcji` do jakiejkolwiek reakcji.
+
+**Kompozycja zamiast jednego monolitu.** Możemy tworzyć klasy, które implementują dowolną kombinację interfejsów tak, jak w życiu pracownik
+może pełnić kilka ról jednocześnie.
+
+```
+DIAGRAM: zgodny z ISP
+
+  ┌─────────────┐      ┌─────────────┐      ┌──────────────────┐
+  │ Pracowalny  │      │   Jadalny   │      │   Zarządzalny    │
+  │─────────────│      │─────────────│      │──────────────────│
+  │ + pracuj()  │      │ + przerwa() │      │ + spotkanie()    │
+  └──────┬──────┘      └──────┬──────┘      └────────┬─────────┘
+         │                    │                      │
+    ┌────┴──────────┐    ┌────┴────┐            ┌────┘
+    │               │    │         │            │
+    ▼               ▼    ▼         ▼            ▼
+┌────────┐   ┌──────────────┐   ┌─────────────────┐
+│ Robot  │   │  Pracownik   │   │    Manager      │
+│        │   │  Produkcji   │   │                 │
+│────────│   │──────────────│   │─────────────────│
+│pracuj()│   │ pracuj()     │   │ przerwa()       │
+└────────┘   │ przerwa()    │   │ spotkanie()     │
+             └──────────────┘   └─────────────────┘
+
+  ✅ Każda klasa implementuje tylko to, czego naprawdę potrzebuje
+```
+
+---
+
+## 5. Dlaczego ISP jest ważne?
+
+**Kod jest łatwiejszy do zrozumienia.** Mały interfejs z jedną lub dwiema metodami mówi wprost, czego oczekuje.
+Czytając `implements Jadalny`, od razu wiemy, że klasa potrafi zrobić przerwę obiadową, nie musimy przeglądać całego grubego interfejsu, by to ustalić.
+
+**Zmiany są bezpieczne i izolowane.** Kiedy rozszerzamy interfejs `Zarządzalny` o nową metodę, dotykamy _tylko_ klas, które go implementują.
+`Robot` i `PracownikProdukcji` pozostają nienaruszone, nawet jeśli kompilujemy projekt na nowo.
+
+**Testowanie staje się prostsze.** Kiedy piszemy testy dla metody, która przyjmuje `Pracowalny`,
+możemy stworzyć minimalnego mocka z jedną metodą. Nie musimy implementować dziesięciu metod, z których siedem jest puste.
+
+**Wpływ na pracę zespołu.** W projektach wieloosobowych wąskie interfejsy oznaczają mniejsze konflikty podczas merge'owania kodu.
+Dwie osoby mogą niezależnie modyfikować `Pracowalny` i `Zarządzalny` bez ryzyka, że ich zmiany będą się zderzać.
+
+**Konsekwencje zaniedbania ISP w dużych projektach.** Wyobraźmy sobie interfejs z 30 metodami, który implementuje 20 klas.
+Dodanie jednej nowej metody oznacza modyfikację wszystkich 20 klas, nawet tych, które tej metody nigdy nie użyją.
+To klasyczna sytuacja, w której programiści w pośpiechu dorzucają `throw new UnsupportedOperationException()` i idą dalej,
+tworząc pułapki dla następnych osób w zespole.
+
+---
+
+## 6. Kiedy stosować?
+
+**Gdy klasa implementuje interfejs, ale niektóre metody zostawia puste lub rzuca wyjątkami.**
+To najsilniejszy sygnał naruszenia ISP, klasa mówi: „muszę to zdefiniować, ale to nie ma dla mnie sensu".
+
+**Gdy zmiana w interfejsie wymusza modyfikacje w klasach, które tej zmiany nie dotyczą.** Jeśli dodanie metody do interfejsu powoduje,
+że musimy dotknąć klasy, które nigdy tej metody nie wywołają, oznacza to, że interfejs jest zbyt szeroki.
+
+**W API i bibliotekach.** Spring Framework jest doskonałym przykładem stosowania ISP, zamiast jednego interfejsu `Repository`,
+mamy wyspecjalizowane: `CrudRepository`, `PagingAndSortingRepository`, `JpaRepository`. Każdy użytkownik biblioteki wybiera dokładnie taki poziom
+funkcjonalności, jakiego potrzebuje.
+
+```java
+// Przykład z ekosystemu Spring Data:
+// Możemy wybrać minimalny interfejs...
+interface NaszeRepozytorium extends CrudRepository<Produkt, Long> { }
+
+// ...albo rozszerzone możliwości, jeśli naprawdę ich potrzebujemy
+interface NaszRepozytorium extends JpaRepository<Produkt, Long> { }
+```
+
+**W systemach e-commerce.** Zamiast jednego interfejsu `Płatność` z metodami dla kart, przelewów, BLIK-a i kryptowalut,
+lepiej mieć osobne interfejsy dla każdego kanału płatności. Implementacja obsługująca BLIK nie musi wiedzieć nic o kryptowalutach.
+
+**Mnemotechnika do zapamiętania:**
+
+> Tak jak w życiu lekarz podpisuje umowę lekarza, a nie kontrakt, w którym zobowiązuje się też naprawiać auta.
+> Każdy specjalista ma swoją, precyzyjną umowę.
+
+---
+
+> Dobrze zaprojektowany interfejs opisuje jedną, spójną zdolność.
+> Dzięki temu klasy są uczciwe wobec swoich kontraktów, a kod przewidywalny i bezpieczny w rozwijaniu.

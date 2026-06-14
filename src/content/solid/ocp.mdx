@@ -1,0 +1,143 @@
+## 1. Definicja
+
+**Open/Closed Principle (OCP)** mówi, że elementy systemu (takie jak klasy, moduły czy funkcje) powinny być otwarte na rozbudowę, ale zamknięte na modyfikację.
+
+Inaczej rzecz ujmując:
+
+- możemy **dodawać nowe funkcje**,
+- nie powinniśmy **zmieniać istniejącego, działającego kodu**.
+
+Najprościej rzecz ujmując: **chcesz dodać nową funkcję? Dopisz nowy kod, zamiast zmieniać ten, który już działa i został przetestowany.**
+
+Oznacza to, że zachowanie klasy można rozszerzyć (dodać nowe możliwości) bez konieczności zaglądania do jej wnętrza i zmieniania istniejących linii kodu.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie **wielofunkcyjny robot kuchenny.**
+
+Kupując robot kuchenny, otrzymujemy podstawę z silnikiem oraz zestaw końcówek do róznego przeznaczenia (ostrze do siekania, trzepaczkę do ubijania itd.).
+
+Po jakimś czasie stwierdzamy, że chcielibyśmy tym samym wielofunkcyjnym urządzeniem wyciskać sok z owoców. Zauważamy, że nie mamy odpowiedniej do tego
+zadania końcówki i postanawiamy chwycić za śrubokręt, rozkręcić obudowę robota, dostać się do silnika, wykręcić kilka śrubek, dokręcić nowe elementy.
+Czy ten sposób jest bezpieczny? Zdecydowanie nie i, co więcej, nie będzie skuteczny, bo możemy uszkodzić silnik i sprawić, że robot przestanie działać.
+
+Jeśli chcemy wyciskać sok za pomocą tego samego urządzenia, idziemy do sklepu dokupić odpowiednią końcówkę do tego przeznaczoną, która jest kompatybilna z podstawą robota.
+
+Baza robota kuchennego jest **zamknięta na modyfikację** (nie grzebiemy w silniku), ale cały system jest **otwarty na rozbudowę**
+(możemy dokupić wiele końcówek do różnego przeznaczenia).
+
+Dokładnie tak samo powinno być w programowaniu. Główny mechanizm naszej aplikacji powinien być jak podstawa robota kuchennego - stabilny i nienaruszalny,
+a nowe funkcjonalności powinny być jak wymienne końcówki.
+
+---
+
+## 3. Przykład - naruszenie OCP
+
+Załóżmy, że tworzymy system obsługi płatności w sklepie internetowym. Początkowo obsługujemy tylko tradycyjne przelewy bankowe oraz karty płatnicze.
+
+Klasa `PaymentProcessor` poniżej narusza zasadę OCP:
+
+```java
+class PaymentProcessor {
+
+    public void processPayment(String method, double amount) {
+        if (method.equalsIgnoreCase("CARD")) {
+            // Logika autoryzacji i obciążenia karty płatniczej
+            System.out.println("Płacę kartą: " + amount + " zł");
+
+        } else if (method.equalsIgnoreCase("TRANSFER")) {
+            // Logika księgowania przelewu bankowego
+            System.out.println("Płacę przelewem: " + amount + " zł");
+        }
+    }
+}
+```
+
+Problem pojawia się w momencie, gdy biznes prosi o dodanie nowej metody płatności, np. BLIK lub PayPal.
+
+Aby to zrobić, musimy:
+
+- Wejść do klasy PaymentProcessor.
+- Dodać kolejny blok else if.
+
+**Dlaczego to jest złe?** Klasa jest otwarta na modyfikację. Za każdym razem, gdy dodajemy nową płatność, zmieniamy ten sam plik.
+Ryzykujemy, że przy dopisywaniu BLIK-a zrobimy literówkę lub błąd, który zepsuje dotychczas bezbłędnie działające płatności kartą.
+
+---
+
+## 4. Przykład - zgodny z OCP
+
+Aby naprawić ten kod, musimy stworzyć „uniwersalne gniazdo” (interfejs) oraz „wymienne końcówki” (klasy realizujące konkretne płatności).
+
+```java
+// 1. Tworzymy uniwersalne gniazdo (Interfejs)
+interface PaymentMethod {
+    void pay(double amount);
+}
+
+// 2. Tworzymy wymienne końcówki (Klasy implementujące)
+class CardPayment implements PaymentMethod {
+    public void pay(double amount) {
+        // Logika dla karty
+        System.out.println("Płacę kartą: " + amount + " zł");
+    }
+}
+
+class TransferPayment implements PaymentMethod {
+    public void pay(double amount) {
+        // Logika dla przelewu
+        System.out.println("Płacę przelewem: " + amount + " zł");
+    }
+}
+
+// 3. Klasa zarządzająca – zamknięta na modyfikacje
+class PaymentProcessor {
+    public void process(PaymentMethod paymentMethod, double amount) {
+        // Ta klasa nie wie i nie musi wiedzieć, jak działa dana płatność!
+        // Ona po prostu uruchamia metodę pay().
+        paymentMethod.pay(amount);
+    }
+}
+```
+
+**Co zyskujemy?**
+
+Jeśli teraz zechcemy dodać płatność BLIK, nie dotykamy ani jednej linii kodu w klasie PaymentProcessor! Po prostu dopisujemy zupełnie nową, osobną klasę:
+
+```java
+class BlikPayment implements PaymentMethod {
+    public void pay(double amount) {
+        // Logika płatności BLIK
+        System.out.println("Płacę BLIK-iem: " + amount + " zł");
+    }
+}
+```
+
+System został rozbudowany, ale żaden istniejący kod nie został zmodyfikowany. Zasada OCP została spełniona.
+
+---
+
+## 5. Dlaczego OCP jest ważne?
+
+**Święty spokój i bezpieczeństwo** – nie dotykamy kodu, który już działa na produkcji i zarabia pieniądze. Mamy 100% pewności, że dodając nową funkcję,
+nie popsujemy starej.
+
+**Mniej testowania regresyjnego** – testerzy nie muszą ponownie sprawdzać całego systemu płatności. Muszą przetestować tylko tę jedną, nowo dodaną klasę (np. BlikPayment).
+
+**Praca zespołowa bez konfliktów** – jeśli pięciu programistów ma dodać pięć różnych metod płatności, każdy z nich tworzy swój własny plik.
+Nie wchodzą sobie w drogę i nie generują konfliktów w systemie kontroli wersji (Git).
+
+**Czystość i czytelność** – zamiast jednej gigantycznej metody z pięćdziesięcioma instrukcjami if-else, mamy małe, zwięzłe i łatwe do zrozumienia klasy.
+
+---
+
+## 6. Kiedy stosować?
+
+- Gdy widzimy powtarzające się instrukcje if-else lub switch, które sprawdzają "typ" obiektu i na tej podstawie podejmują decyzje.
+- Gdy wiemy, że dane wymaganie biznesowe będzie regularnie rozbudowywane o nowe warianty (np. nowe formaty generowania raportów PDF/Excel/CSV,
+  nowe stawki podatkowe w zależności od kraju, nowe metody wysyłki paczek).
+- Gdy tworzymy architekturę opartą na wtyczkach (pluginach), gdzie użytkownicy naszego kodu powinni mieć możliwość dodawania własnych rozszerzeń.
+
+Projektujemy kod tak, jakby jutro miał przyjść klient z żądaniem dodania opcji, o której dzisiaj nikt jeszcze nie myślał.

@@ -8,6 +8,7 @@ hljs.registerLanguage("java", java);
 type Props = { children?: ReactNode };
 type AnchorProps = { href?: string; children?: ReactNode };
 type CodeProps = { children?: ReactNode; className?: string };
+type TextProps = { children?: ReactNode };
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
@@ -56,24 +57,56 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         </div>
       </blockquote>
     ),
+    text: ({ children }: TextProps) => (
+      <div className="mb-4 leading-relaxed text-text-muted">{children}</div>
+    ),
+    pre: ({ children }: Props) => (
+      <pre className="mb-6 overflow-x-auto rounded-lg  bg-surface p-4 text-sm">
+        {children}
+      </pre>
+    ),
+
+    br: () => <br />,
     code: ({ children, className }: CodeProps) => {
       const isBlock = !!className?.includes("language-");
 
+      // bloki z jawnym językiem (java, ts, itp.)
       if (isBlock) {
-        const language = className?.replace("language-", "") ?? "java";
+        const language = className?.replace("language-", "") ?? "";
         const code = String(children).trim();
-        const highlighted = hljs.highlight(code, { language }).value;
 
+        try {
+          const highlighted = hljs.getLanguage(language)
+            ? hljs.highlight(code, { language }).value
+            : hljs.highlightAuto(code).value;
+
+          return (
+            <code
+              className={`hljs language-${language}`}
+              dangerouslySetInnerHTML={{ __html: highlighted }}
+            />
+          );
+        } catch {
+          return <code>{code}</code>;
+        }
+      }
+
+      // bloki bez języka (``` bez suffixu) — diagramy ASCII
+      if (
+        !className &&
+        typeof children === "string" &&
+        children.includes("\n")
+      ) {
         return (
-          <code
-            className={`hljs language-${language}`}
-            dangerouslySetInnerHTML={{ __html: highlighted }}
-          />
+          <pre className="not-prose rounded-lg overflow-x-auto p-4 my-6 text-sm font-mono leading-relaxed bg-surface-hover text-primary">
+            <code>{String(children).trim()}</code>
+          </pre>
         );
       }
 
+      // inline `kod`
       return (
-        <code className="rounded border border-border bg-surface-hover px-1.5 py-0.5 font-mono text-xs text-accent">
+        <code className="rounded  bg-surface-hover px-1.5 py-0.5 font-mono text-xs text-accent">
           {children}
         </code>
       );

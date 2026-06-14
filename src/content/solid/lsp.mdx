@@ -1,0 +1,296 @@
+## 1. Definicja
+
+**Liskov Substitution Principle** mówi, że obiekty klasy pochodnej powinny móc zastąpić obiekty klasy bazowej bez zmiany poprawności programu.
+
+Najprościej rzecz ujmując: **jeśli klasa `B` dziedziczy po klasie `A`, to wszędzie tam, gdzie używamy `A`, powinniśmy móc użyć `B`
+i program powinien działać tak samo poprawnie.**
+
+Zasada ta dotyczy nie tylko sygnatur metod, ale przede wszystkim **zachowania**. Klasa pochodna nie może zmieniać semantyki metod
+odziedziczonych po klasie bazowej.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie wypożyczalnię samochodów. Klient przychodzi i mówi: „poproszę samochód". Wypożyczalnia daje mu kluczyki i wskazuje pojazd na parkingu. Klient zakłada, że samochód:
+
+- odpali po przekręceniu kluczyka,
+- zahamuje po naciśnięciu pedału hamulca,
+- ruszy po wciśnięciu gazu.
+
+Teraz wyobraźmy sobie, że wypożyczalnia podstawia mu **samochód z wyciętym silnikiem**. Nadal wygląda jak samochód, ma kluczyk, ma kierownicę,
+ma pedały. Ale po przekręceniu kluczyka nic się nie dzieje.
+
+Czy to nadal „samochód" w sensie umowy z klientem? Technicznie, tak. Praktycznie, absolutnie nie.
+
+Klient miał prawo oczekiwać, że każdy pojazd z tej wypożyczalni zachowuje się jak samochód.
+Wypożyczalnia naruszyła jego zaufanie, podstawiając obiekt, który wygląda jak samochód, ale nie zachowuje się jak samochód.
+
+W programowaniu jest dokładnie tak samo. Jeśli mamy klasę `Samochód` z metodą `odpal()`, a tworzymy podklasę `SamochodBezSilnika`,
+która tę metodę przesłania i rzuca wyjątkiem to naruszamy LSP. Każdy fragment kodu, który oczekiwał `Samochód`,
+dostaje obiekt, który tego kontraktu nie spełnia.
+
+Ćwiczenie myślowe: wyobraźmy sobie teraz klasyczny przykład z programowania prostokąt i kwadrat.
+Na pierwszy rzut oka kwadrat **jest** prostokątem (każdy kwadrat to prostokąt). Ale czy w kodzie klasa `Kwadrat`
+powinna dziedziczyć po `Prostokąt`? Zobaczmy, gdzie się to sypie.
+
+---
+
+## 3. Przykład — naruszenie LSP
+
+Budujemy system do obliczania pól figur geometrycznych. Zaczynamy od prostokąta:
+
+```java
+// Klasa bazowa prostokąt z niezależnymi wymiarami
+class Prostokat {
+
+    protected int szerokosc;
+    protected int wysokosc;
+
+    public void setSzerokosc(int szerokosc) {
+        this.szerokosc = szerokosc;
+    }
+
+    public void setWysokosc(int wysokosc) {
+        this.wysokosc = wysokosc;
+    }
+
+    public int obliczPole() {
+        return szerokosc * wysokosc;
+    }
+}
+```
+
+Matematycznie kwadrat jest szczególnym przypadkiem prostokąta, więc dziedziczymy:
+
+```java
+// Kwadrat dziedziczy po Prostokąt, pozornie logiczne
+class Kwadrat extends Prostokat {
+
+    // Kwadrat musi mieć równe boki, więc nadpisujemy settery
+    @Override
+    public void setSzerokosc(int szerokosc) {
+        // Ustawiamy OBA wymiary, żeby kwadrat pozostał kwadratem
+        this.szerokosc = szerokosc;
+        this.wysokosc = szerokosc; // ← tutaj zaczyna się problem
+    }
+
+    @Override
+    public void setWysokosc(int wysokosc) {
+        // Tak samo tutaj, oba wymiary muszą być równe
+        this.szerokosc = wysokosc; // ← cicha modyfikacja pola, którego nie dotykamy
+        this.wysokosc = wysokosc;
+    }
+}
+```
+
+Napiszmy teraz metodę, która działa na `Prostokat` i sprawdźmy, co się stanie gdy podstawimy `Kwadrat`:
+
+```java
+// Metoda oczekuje Prostokąta zgodnie z LSP powinna przyjąć też Kwadrat
+public static void testujPole(Prostokat p) {
+    p.setSzerokosc(5);
+    p.setWysokosc(3);
+
+    // Oczekujemy: 5 * 3 = 15
+    int oczekiwane = 15;
+    int rzeczywiste = p.obliczPole();
+
+    System.out.println("Oczekiwane: " + oczekiwane);
+    System.out.println("Rzeczywiste: " + rzeczywiste);
+
+    // Dla Prostokąt: wypisze 15 ✅
+    // Dla Kwadrat:   wypisze 9  ❌ — setSzerokosc(5) ustawiło też wysokość na 5,
+    //                              a potem setWysokosc(3) przestawiło oba na 3
+}
+
+public static void main(String[] args) {
+    testujPole(new Prostokat()); // działa poprawnie
+    testujPole(new Kwadrat());   // zwraca błędny wynik, LSP naruszone!
+}
+```
+
+Co jest złego w tym podejściu?
+
+**Klasa pochodna zmienia zachowanie metod bazowych.** `setSzerokosc()` w klasie `Prostokat` ustawia tylko szerokość. W klasie `Kwadrat`
+ta sama metoda ustawia też wysokość, bez wiedzy wywołującego.
+
+**Kod, który ufał kontraktowi klasy bazowej, przestaje działać poprawnie.** Metoda `testujPole()` nie wie, że dostała `Kwadrat`
+i nie powinna musieć wiedzieć. To jest sedno naruszenia LSP.
+
+**Hierarchia dziedziczenia odzwierciedla relację matematyczną, nie programistyczną.** W geometrii kwadrat jest prostokątem. W obiektowym programowaniu
+niekoniecznie, bo mają inne zachowania setterów.
+
+```
+DIAGRAM: naruszenie LSP
+
+┌─────────────────────────┐
+│        Prostokąt        │
+│─────────────────────────│
+│ + setSzerokosc(int)     │  ← ustawia TYLKO szerokość
+│ + setWysokosc(int)      │  ← ustawia TYLKO wysokość
+│ + obliczPole(): int     │
+└────────────┬────────────┘
+             │ extends
+             ▼
+┌─────────────────────────┐
+│         Kwadrat         │
+│─────────────────────────│
+│ + setSzerokosc(int)     │  ← ustawia OBA wymiary 💥
+│ + setWysokosc(int)      │  ← ustawia OBA wymiary 💥
+└─────────────────────────┘
+
+testujPole(new Prostokąt()) → 15 ✅
+testujPole(new Kwadrat())   →  9 ❌  zachowanie nie jest zgodne z kontraktem
+```
+
+---
+
+## 4. Przykład — zgodny z LSP
+
+Zamiast próbować wcisnąć kwadrat w hierarchię prostokąta, wydzielamy wspólną abstrakcję czyli coś, co obie figury naprawdę mają wspólnego:
+możliwość obliczenia pola.
+
+```java
+// Wspólna abstrakcja - każda figura potrafi obliczyć swoje pole
+abstract class Figura {
+    public abstract int obliczPole();
+}
+```
+
+```java
+// Prostokąt — niezależne wymiary, własna logika
+class Prostokat extends Figura {
+
+    private int szerokosc;
+    private int wysokosc;
+
+    public Prostokat(int szerokosc, int wysokosc) {
+        this.szerokosc = szerokosc;
+        this.wysokosc = wysokosc;
+    }
+
+    @Override
+    public int obliczPole() {
+        return szerokosc * wysokosc;
+    }
+}
+```
+
+```java
+// Kwadrat — jeden bok, własna logika, bez dziedziczenia po Prostokąt
+class Kwadrat extends Figura {
+
+    private int bok;
+
+    public Kwadrat(int bok) {
+        this.bok = bok;
+    }
+
+    @Override
+    public int obliczPole() {
+        return bok * bok;
+    }
+}
+```
+
+Teraz metoda operująca na `Figura` działa poprawnie dla obu klas:
+
+```java
+// Metoda przyjmuje Figurę — działa poprawnie dla każdej podklasy
+public static void wypiszPole(Figura f) {
+    System.out.println("Pole figury: " + f.obliczPole());
+}
+
+public static void main(String[] args) {
+    wypiszPole(new Prostokat(5, 3)); // Pole figury: 15 ✅
+    wypiszPole(new Kwadrat(4));      // Pole figury: 16 ✅
+}
+```
+
+Co zyskaliśmy?
+
+**Każda klasa jest odpowiedzialna za własną logikę.** `Kwadrat` nie udaje, że jest prostokątem, ma własne, spójne zachowanie.
+
+**Kontrakt klasy bazowej jest zawsze dotrzymany.** `obliczPole()` w każdej podklasie robi dokładnie to, czego oczekuje wywołujący czyli, zwraca pole figury.
+
+**Możemy bezpiecznie podstawiać podklasy.** Każde miejsce w kodzie, które przyjmuje `Figura`, zadziała poprawnie niezależnie od tego,
+czy dostanie `Prostokat`, `Kwadrat`, czy dowolną inną figurę dodaną w przyszłości.
+
+```
+DIAGRAM: zgodny z LSP
+
+             ┌──────────────────┐
+             │      Figura      │
+             │──────────────────│
+             │ + obliczPole()   │  ← kontrakt: zwróć pole
+             └────────┬─────────┘
+                      │ extends
+           ┌──────────┴──────────┐
+           ▼                     ▼
+┌──────────────────┐   ┌──────────────────┐
+│    Prostokąt     │   │     Kwadrat      │
+│──────────────────│   │──────────────────│
+│ + obliczPole()   │   │ + obliczPole()   │
+│   szerokosc*     │   │   bok*bok        │
+│   wysokosc       │   │                  │
+└──────────────────┘   └──────────────────┘
+
+wypiszPole(new Prostokąt(5,3)) → 15 ✅
+wypiszPole(new Kwadrat(4))     → 16 ✅  każda podklasa dotrzymuje kontraktu
+```
+
+---
+
+## 5. Dlaczego LSP jest ważne?
+
+**Dziedziczenie jest obietnicą.** Kiedy piszemy `class B extends A`, składamy obietnicę: „B zachowuje się jak A wszędzie tam, gdzie A jest oczekiwane".
+Naruszenie LSP to złamanie tej obietnicy i źródło błędów, które są wyjątkowo trudne do debugowania, bo kod kompiluje się poprawnie.
+
+**Kod jest przewidywalny.** Jeśli LSP jest przestrzegane, możemy ufać, że podklasy nie przyniosą niespodzianek. Metoda, która działa dla klasy bazowej,
+działa dla każdej podklasy bez konieczności sprawdzania `instanceof` i dostosowywania zachowania.
+
+**Eliminujemy `instanceof` z kodu biznesowego.** Konieczność pisania `if (obiekt instanceof Kwadrat)` to klasyczny sygnał naruszenia LSP.
+Kod musi rozróżniać typy, bo podklasy nie są prawdziwymi zamiennikami klasy bazowej.
+
+**Wpływ na pracę zespołu.** W dużych projektach naruszenia LSP ujawniają się zwykle po czasie, gdy ktoś doda nową podklasę
+i nagle część systemu zaczyna działać inaczej. Przestrzeganie LSP daje zespołowi pewność, że rozszerzanie hierarchii klas jest bezpieczne.
+
+**Konsekwencje zaniedbania LSP w dużych projektach.** Wyobraźmy sobie system płatności z klasą bazową `Platnosc` i dziesiątkami podklas
+dla różnych metod płatności. Jeśli jedna z podklas rzuca `UnsupportedOperationException` dla metody `zwrotSrodkow()`, to cały mechanizm zwrotów przestaje
+działać dla tej metody płatności. Klient nie dostaje pieniędzy, a błąd pojawia się dopiero w produkcji.
+
+---
+
+## 6. Kiedy stosować?
+
+**Zawsze, gdy używamy dziedziczenia.** Przed stworzeniem podklasy warto zadać sobie pytanie: czy ta podklasa może zastąpić klasę bazową
+w każdym scenariuszu? Jeśli odpowiedź brzmi „nie zawsze" to sygnał, że hierarchia jest niepoprawna.
+
+**Gdy w kodzie pojawia się `instanceof`.** Sprawdzanie typu obiektu w czasie działania programu najczęściej oznacza,
+że podklasy nie są prawdziwymi zamiennikami klasy bazowej.
+
+```java
+// 🚨 Sygnał naruszenia LSP — kod musi wiedzieć, z jakim typem ma do czynienia
+public void przetworzFigure(Figura f) {
+    if (f instanceof Kwadrat) {
+        // specjalna obsługa dla kwadratu
+    } else {
+        // standardowa obsługa
+    }
+}
+```
+
+**W systemach e-commerce.** Klasa `Zamowienie` i podklasa `ZamowienieEksportowe`, jeśli zamówienie eksportowe nie obsługuje metody `obliczRabat()`
+tak samo jak zwykłe zamówienie, to narusza LSP i może powodować błędy w systemie rabatowym.
+
+**W Spring Framework.** Spring szeroko stosuje LSP, każdy `Bean` może być zastąpiony mockiem w testach. Właśnie dlatego wstrzykiwanie przez interfejsy jest tak wygodne: każda implementacja jest prawdziwym zamiennikiem.
+
+> **„Jeśli wygląda jak kaczka i kwacze jak kaczka — ale potrzebuje baterii żeby kwakać, masz zły model dziedziczenia."**
+>
+> Podklasa musi nie tylko wyglądać jak klasa bazowa, ale też zachowywać się jak ona bez niespodzianek, bez wyjątków, bez cichych zmian zachowania.
+
+---
+
+> Dziedziczenie to nie tylko współdzielenie kodu — to zobowiązanie do zachowania kontraktu.
+> Klasa pochodna może rozszerzać zachowanie klasy bazowej, ale nigdy nie powinna go łamać.

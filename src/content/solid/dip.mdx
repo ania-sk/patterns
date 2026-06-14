@@ -1,0 +1,315 @@
+## 1. Definicja
+
+**Dependency Inversion Principle** piąta i ostatnia zasada z akronimu SOLID mówi, że:
+
+> Moduły wysokopoziomowe nie powinny zależeć od modułów niskopoziomowych. Oba powinny zależeć od abstrakcji.
+> Abstrakcje nie powinny zależeć od szczegółów. Szczegóły powinny zależeć od abstrakcji.
+> — Robert C. Martin
+
+Rozłóżmy to na dwa zdania, bo każde z nich niesie oddzielną wartość.
+
+**Pierwsze zdanie:** moduły wysokopoziomowe (te, które zawierają logikę biznesową) nie powinny zależeć bezpośrednio od modułów niskopoziomowych
+(tych, które zajmują się szczegółami technicznymi, jak zapis do bazy danych czy wysyłka maili). Obie warstwy powinny zależeć od **abstrakcji**
+czyli interfejsów lub klas abstrakcyjnych.
+
+**Drugie zdanie:** same abstrakcje nie powinny „wiedzieć" o szczegółach implementacji. To szczegóły implementacji mają być podporządkowane
+kontraktowi zdefiniowanemu przez abstrakcję.
+
+Najprościej w jednym zdaniu: **nie importuj konkretów tam, gdzie wystarczy interfejs.**
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że zamawiamy jedzenie do domu. Nie dzwonimy bezpośrednio do kuriera, tylko do restauracji i składamy zamówienie. Restauracja wie,
+że potrzebuje kogoś, kto dostarczy zamówienie pod wskazany adres. Nie ma znaczenia, który to będzie kurier, Ważne, że każdy z nich jest w stanie
+zabrać paczkę i dostarczyć ją do celu.
+
+Gdybyśmy dzwonili bezpośrednio do konkretnego kuriera i stwierdzili, że tylko on może dostarczyć nam jedzenie, to gdy nasz kurier zachoruje,
+zostaniemy bez posiłku. W ten sposób uzależniamy się od **konkretu**, zamiast od **roli**, którą ktoś może pełnić.
+
+W programowaniu ta "rola" to właśnie **interfejs**, czyli abstrakcja. Restauracja (logika biznesowa) nie wie nic o naszym kurierze (konkretnej klasie).
+Wie tylko, że potrzebuje kogoś, kto implementuje rolę "kuriera", czyli odbiera i dostarcza przesyłki.
+
+Ćwiczenie myślowe: wyobraź sobie teraz klasę `OrderProcessor`, która przetwarza zamówienia w sklepie internetowym.
+Żeby zakończyć zamówienie, musi je gdzieś zapisać. Jeśli `OrderProcessor` bezpośrednio tworzy instancję klasy `MySQLOrderRepository`,
+to właśnie zadzwoniłeś do kuriera bezpośrednio. Co się stanie, gdy zdecydujesz się przejść na PostgreSQL, MongoDB, albo zapis do pliku w testach?
+Musisz wchodzić do klasy, która powinna zajmować się logiką biznesową, nie szczegółami infrastruktury.
+Właśnie to rozwiązuje DIP.
+
+---
+
+## 3. Przykład — naruszenie DIP
+
+Wyobraźmy sobie, że budujemy system powiadomień dla platformy e-commerce. Klasa `NotificationService` ma wysyłać
+powiadomienia do użytkowników po złożeniu zamówienia.
+
+Ktoś, kto nie zna DIP, napisze to tak: "potrzebuję wysyłać maile, użyję `EmailSender`."
+
+```java
+// Klasa niskopoziomowa — konkretna implementacja
+class EmailSender {
+
+    public void send(String recipient, String message) {
+        // szczegół techniczny: wysyłanie maila przez SMTP
+        System.out.println("Wysyłam email do: " + recipient);
+    }
+}
+
+// Klasa wysokopoziomowa — logika biznesowa
+class NotificationService {
+
+    // ❌ Zależność od KONKRETU, nie od abstrakcji
+    // NotificationService "wie" zbyt dużo o EmailSender
+    private EmailSender emailSender = new EmailSender();
+
+    public void notifyUser(String userEmail, String orderInfo) {
+        // logika biznesowa miesza się z konkretną implementacją
+        emailSender.send(userEmail, "Twoje zamówienie: " + orderInfo);
+    }
+}
+```
+
+Na pierwszy rzut oka kod wygląda sensownie. Ale zobaczmy, co się dzieje, gdy wymagania się zmieniają, a w rzeczywistych projektach zawsze się zmieniają.
+
+**Scenariusz 1:** Klient prosi o dodanie powiadomień SMS obok maili.
+Musimy zmodyfikować `NotificationService`, klasę z logiką biznesową, tylko dlatego, że zmienił się kanał komunikacji. To naruszenie SRP przy okazji.
+
+**Scenariusz 2:** W testach jednostkowych nie chcemy wysyłać prawdziwych maili.
+Nie ma jak podmienić `EmailSender` na atrapę (mock), bo jest tworzony wewnątrz klasy za pomocą `new`.
+
+**Scenariusz 3:** Chcemy obsługiwać różnych dostawców maili (SendGrid, Mailgun, własny serwer).
+Każda zmiana dostawcy wymaga wejścia do `NotificationService` i modyfikacji kodu, który nie powinien w ogóle wiedzieć, kto wysyła maile.
+
+Korzeń problemu jest jeden: `NotificationService` zależy od **konkretu** (`EmailSender`), zamiast od **abstrakcji**.
+
+```
+Przed (naruszenie DIP):
+
+┌─────────────────────────┐
+│   NotificationService   │   ← moduł wysokopoziomowy
+│   (logika biznesowa)    │
+└────────────┬────────────┘
+             │ zależy bezpośrednio od
+             ▼
+┌─────────────────────────┐
+│       EmailSender       │   ← moduł niskopoziomowy
+│  (szczegół techniczny)  │
+└─────────────────────────┘
+
+Problem: zmiana EmailSender = zmiana NotificationService
+```
+
+---
+
+## 4. Przykład — zgodny z DIP
+
+Jak poprawić ten kod? Wprowadzamy **abstrakcję**, interfejs, który definiuje kontrakt: "cokolwiek umie wysłać powiadomienie, może tutaj działać."
+Następnie zarówno `NotificationService`, jak i `EmailSender` zależą od tego interfejsu, a nie od siebie nawzajem.
+
+```java
+// ✅ Abstrakcja — kontrakt (nasza "restauracja")
+interface NotificationSender {
+    void send(String recipient, String message);
+}
+```
+
+Teraz klasy niskopoziomowe implementują ten interfejs:
+
+```java
+// ✅ Szczegół techniczny implementuje abstrakcję, nie odwrotnie
+class EmailSender implements NotificationSender {
+
+    @Override
+    public void send(String recipient, String message) {
+        // szczegół: wysyłanie przez SMTP
+        System.out.println("Email do: " + recipient + " | " + message);
+    }
+}
+
+// ✅ Nowy kanał? Żadnego problemu — implementujemy ten sam interfejs
+class SmsSender implements NotificationSender {
+
+    @Override
+    public void send(String recipient, String message) {
+        // szczegół: wysyłanie przez bramkę SMS
+        System.out.println("SMS do: " + recipient + " | " + message);
+    }
+}
+```
+
+A klasa wysokopoziomowa? Nie wie nic o konkretach, zna tylko interfejs:
+
+```java
+// ✅ NotificationService zależy od ABSTRAKCJI, nie od konkretu
+class NotificationService {
+
+    // zależność wstrzykiwana z zewnątrz (Dependency Injection)
+    private final NotificationSender sender;
+
+    // ✅ Konstruktor przyjmuje interfejs — nie konkret
+    // Kto decyduje, co tu trafi? Zewnętrzny kod (np. Spring IoC Container)
+    public NotificationService(NotificationSender sender) {
+        this.sender = sender;
+    }
+
+    public void notifyUser(String userContact, String orderInfo) {
+        // logika biznesowa jest czysta — nie wie, jak wysyłane jest powiadomienie
+        sender.send(userContact, "Twoje zamówienie: " + orderInfo);
+    }
+}
+```
+
+Teraz zobaczmy, jak to wygląda w użyciu:
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Decyzja o implementacji zapada tutaj — na zewnątrz
+        NotificationSender emailSender = new EmailSender();
+        NotificationService serviceA = new NotificationService(emailSender);
+        serviceA.notifyUser("jan@example.com", "#12345");
+
+        // Chcemy SMS? Podmieniamy jeden wiersz, reszta kodu bez zmian
+        NotificationSender smsSender = new SmsSender();
+        NotificationService serviceB = new NotificationService(smsSender);
+        serviceB.notifyUser("+48 600 000 000", "#12346");
+    }
+}
+```
+
+Co się zmieniło? Przyjrzyjmy się krok po kroku:
+
+**1. Wprowadziliśmy interfejs `NotificationSender`.**
+To nasza "restauracja", abstrakcja definiująca kontrakt. Każdy, kto chce być "nadawcą powiadomień", musi go implementować.
+
+**2. `NotificationService` nie tworzy już obiektów przez `new`.**
+Zamiast tego przyjmuje `NotificationSender` przez konstruktor. To wzorzec zwany **Dependency Injection** wstrzykiwanie zależności.
+DIP to zasada, DI to technika jej realizacji.
+
+**3. Dodanie nowego kanału komunikacji nie wymaga zmian w `NotificationService`.**
+SMS, push notification, Slack, wystarczy nowa klasa implementująca `NotificationSender`.
+
+**4. Testy są trywialne.**
+W teście możemy wstrzyknąć `MockNotificationSender` zamiast prawdziwej implementacji.
+
+```
+Po (zgodnie z DIP):
+
+┌─────────────────────────┐
+│   NotificationService   │   ← moduł wysokopoziomowy
+│   (logika biznesowa)    │
+└────────────┬────────────┘
+             │ zależy od abstrakcji
+             ▼
+┌─────────────────────────┐
+│   NotificationSender    │   ← ABSTRAKCJA (interfejs)
+│      «interface»        │
+└──────────┬──────────────┘
+           │ implementują
+    ┌──────┴───────┐
+    ▼              ▼
+┌──────────┐  ┌──────────┐
+│  Email   │  │   SMS    │   ← moduły niskopoziomowe
+│  Sender  │  │  Sender  │      (szczegóły techniczne)
+└──────────┘  └──────────┘
+
+Zmiana EmailSender? NotificationService nie wie, nie pyta.
+```
+
+Zależności zostały **odwrócone** (_inverted_) stąd nazwa zasady. Dawniej `NotificationService` wskazywał w dół na `EmailSender`.
+Teraz obaj wskazują na środek na interfejs.
+
+---
+
+## 5. Dlaczego DIP jest ważne?
+
+**Elastyczność i wymienność implementacji**
+
+Gdy logika biznesowa jest odizolowana od szczegółów technicznych, zmiana sposobu zapisu danych, kanału powiadomień
+czy zewnętrznego API nie wymusza modyfikacji kodu, który tę logikę zawiera. Wymieniamy implementację jak żarówkę w oprawce
+gwint (interfejs) pozostaje ten sam.
+
+**Testowalność kodu**
+
+To jeden z największych praktycznych benefitów. Jeśli `NotificationService` zależy od interfejsu, w testach
+jednostkowych możemy wstrzyknąć atrapę (mock), która tylko symuluje wysyłkę. Nie wysyłamy prawdziwych maili, nie trafiamy do produkcyjnej bazy
+testujemy logikę w izolacji.
+
+```java
+// Test bez DIP: niemożliwy bez ingerencji w kod produkcyjny
+// Test z DIP: czysty i szybki
+class MockSender implements NotificationSender {
+    public List<String> sent = new ArrayList<>();
+
+    @Override
+    public void send(String recipient, String message) {
+        sent.add(recipient); // zapamiętujemy, ale nie wysyłamy
+    }
+}
+```
+
+**Mniejsze konflikty w zespole**
+
+Gdy zależności są oparte na interfejsach, różne osoby mogą równolegle rozwijać `NotificationService` i `EmailSender`
+bez wzajemnego blokowania. Interfejs to umowa, każda ze stron wie, czego ma się trzymać.
+
+**Długoterminowe konsekwencje zaniedbania**
+
+W dużych projektach kod bez DIP stopniowo zamienia się w to, co inżynierowie nazywają "spaghetti dependencies", sieć wzajemnych powiązań między konkretnymi klasami.
+Każda zmiana powoduje efekt domina. Refaktoryzacja staje się ryzykowna, testy niemożliwe. Nowe osoby w zespole potrzebują tygodni, żeby zrozumieć, co od czego zależy.
+
+DIP to inwestycja, której zysk rośnie wraz z rozmiarem projektu.
+
+---
+
+## 6. Kiedy stosować?
+
+**Gdy klasa łączy się z zewnętrznym zasobem**
+
+Baza danych, zewnętrzne API, system plików, bramka płatnicza, zawsze warto obudować to interfejsem. Implementacja może się
+zmienić (dostawca API podnosi ceny, migrujemy bazę), logika biznesowa nie powinna tego odczuć.
+
+**Gdy piszemy kod, który chcemy testować jednostkowo**
+
+Jeśli klasa tworzy swoje zależności przez `new`, nie możesz ich podmienić w testach. Jeśli przyjmuje je przez konstruktor lub setter, możemy wstrzyknąć mock.
+
+**W frameworkach, które już to robią za Ciebie**
+
+Spring Framework to de facto DIP na skalę przemysłową. Kontener IoC (Inversion of Control) zarządza tworzeniem obiektów i wstrzykiwaniem zależności.
+Adnotacje `@Autowired`, `@Component`, `@Service` to wszystko mechanizmy realizacji DIP.
+
+```java
+// Spring i DIP w praktyce
+@Service
+public class OrderService {
+
+    private final PaymentGateway paymentGateway; // interfejs, nie konkret!
+
+    @Autowired
+    public OrderService(PaymentGateway paymentGateway) {
+        this.paymentGateway = paymentGateway;
+    }
+}
+```
+
+Spring sam zdecyduje, którą implementację `PaymentGateway` wstrzyknąć na podstawie konfiguracji lub adnotacji. Klasa `OrderService` nie musi tego wiedzieć.
+
+**Hibernate i JPA** robią to samo z warstwą dostępu do danych: `EntityManager` i repozytoria to abstrakcje oddzielające logikę od silnika bazodanowego.
+
+---
+
+> **Zależny od umowy, nie od wykonawcy.**
+
+> **new = złe miejsce na decyzję."** — jeśli wewnątrz klasy biznesowej piszesz `new ConcreteService()`, to decyzja o implementacji zapada w złym miejscu.
+
+> **Wskazuj w górę, na abstrakcję — nie w dół, na szczegół.**
+
+---
+
+## Podsumowanie
+
+DIP to zasada, która domyka cykl SOLID. SRP mówi, żeby klasy były skupione. OCP mówi, żeby były otwarte na rozszerzanie.
+LSP i ISP porządkują hierarchie i interfejsy. A DIP wiąże to wszystko w całość: zdefiniuj kontrakt, zależnie od kontraktu
+i zostaw szczegółom rolę sługi, nie pana.

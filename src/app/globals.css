@@ -194,7 +194,13 @@ body {
 .prose pre {
   background: #070707 !important;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 15px;
+}
+
+/* diagramy ASCII — bez obramowania */
+.prose pre.not-prose {
+  border: none;
+  border-radius: 15px;
 }
 
 /* Media queries — breakpointy pomocnicze */

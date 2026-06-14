@@ -1,0 +1,202 @@
+## 1. Definicja
+
+**Single Responsibility Principle** mówi, że klasa powinna mieć tylko jeden powód do zmiany.
+
+> A class should have only one reason to change.
+> — Robert C. Martin
+
+Najprościej rzecz ujmując: **jedna klasa = jedna odpowiedzialność.**
+
+Oznacza to, że klasa może wykonywać wiele operacji, ale wszystkie powinny dotyczyć **jednego sprecyzowanego obszaru odpowiedzialności.**
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie pracownika w firmie, który zajmuje się:
+
+- odbieraniem telefonów,
+- prowadzeniem księgowości,
+- naprawą komputerów,
+- rekrutacją nowych pracowników.
+
+Na pierwszy rzut oka może się wydawać, że to oszczędność - jedna osoba zajmuje się wszystkim. Jendak problem pojawia się wtedy, gdy zachodzą zmiany w którymkolwiek z tych obszarów.
+
+**Zmiana w księgowości**
+
+Firma wprowadza nowe przepisy podatkowe lub zmienia sposób wystawiania faktur.
+Pracownik musi nauczyć się nowych procedur i zmodyfikować sposób wykonywania obowiązków związanych z księgowością.
+
+**Zmiana w rekrutacji**
+
+Dział HR postanawia dodać nowy etap rozmów kwalifikacyjnych lub zmienić formularze dla kandydatów.
+Ponownie ten sam pracownik musi dostosować swoją pracę, mimo że zmiana nie ma nic wspólnego z księgowością itd.
+
+W efekcie jedna osoba staje się zależna od zmian zachodzących w wielu zupełnie różnych obszarach firmy. Każda nowa procedura, regulacja lub wymaganie powoduje konieczność modyfikacji jej pracy.
+
+Dokładnie ten sam problem występuje w programowaniu.
+
+Jeżeli jedna klasa:
+
+- zapisuje dane do bazy,
+- wysyła wiadomości e-mail,
+- generuje raporty,
+- drukuje dokumenty,
+
+to każda zmiana w jednym z tych obszarów wymaga modyfikacji tej samej klasy.
+
+W rezultacie:
+
+- kod staje się coraz większy,
+- rośnie ryzyko wprowadzenia błędów,
+- trudniej testować zmiany,
+- trudniej zrozumieć odpowiedzialność klasy.
+
+Zgodnie z zasadą **SRP** lepiej zatrudnić czterech specjalistów:
+
+księgowego,
+rekrutera,
+informatyka,
+pracownika obsługi klienta.
+
+W świecie programowania odpowiednikami tych specjalistów są osobne klasy, z których każda odpowiada za jeden konkretny obszar. Dzięki temu zmiana w księgowości nie wpływa na pracę informatyka, a zmiana sposobu rekrutacji nie wymaga modyfikacji procesów obsługi klienta.
+
+To właśnie oznacza **„jeden powód do zmiany”**.
+
+---
+
+## 3. Przykład - naruszenie SRP
+
+Załóżmy, że tworzymy system sklepu internetowego.
+
+Klasa `OrderService` poniżej narusza SRP, ponieważ ma trzy powody do zmiany:
+
+- zapisuje zamówienie,
+- wysyła e-mail,
+- drukuje fakturę.
+
+```java
+class OrderService {
+
+    public void saveOrder(Order order) {
+        // zapis do bazy danych
+    }
+
+    public void sendConfirmationEmail(Order order) {
+        // wysłanie maila do klienta
+    }
+
+    public void printInvoice(Order order) {
+        // drukowanie faktury
+    }
+}
+```
+
+Problem stanowią **trzy powody do zmiany klasy**:
+
+- jeżeli zmieni się sposób zapisu danych (przejdziemy z MySQL na PostgreSQL),
+
+```java
+    public void saveOrder(Order order) {
+        // zapis do bazy danych
+    }
+```
+
+- jeżeli zmieni się sposób wysyłania maili,
+
+```java
+    public void sendConfirmationEmail(Order order) {
+        // wysłanie maila do klienta
+    }
+```
+
+- jeżeli zmieni się wygląd faktury (wymóg nowych danych na fakturze),
+
+```java
+    public void printInvoice(Order order) {
+        // drukowanie faktury
+    }
+```
+
+## Skąd pochodzi zmiana? Koncept aktora
+
+Warto zadać sobie pytanie: **kto wymusza zmianę** w danej metodzie klasy `OrderService`?
+
+- Zmianę w `saveOrder()` wymusi **zespół infrastruktury** - np. decyzja o migracji bazy danych z MySQL na PostgreSQL.
+- Zmianę w `sendConfirmationEmail()` wymusi **dział marketingu** - np. nowy szablon wiadomości powitalnej.
+- Zmianę w `printInvoice()` wymusi **dział księgowości** - np. wymóg dodania nowego pola na fakturze.
+
+Każdy z tych podmiotów to w terminologii Roberta C. Martina **aktor** (_actor_) - konkretna osoba lub zespół,
+który odpowiada za dany obszar biznesowy i jako jedyny powinien mieć powód, by żądać zmiany w klasie.
+
+> Moduł powinien być odpowiedzialny wobec jednego i tylko jednego aktora.
+> — Robert C. Martin, _Clean Architecture_
+
+Jeżeli trzy różne osoby z trzech różnych działów mogą niezależnie zlecić modyfikację tej samej klasy - to sygnał, że klasa narusza SRP.
+
+Właśnie dlatego definicja mówi o **powodzie do zmiany**, a nie o **liczbie metod**. Klasa może mieć wiele metod i nadal respektować SRP
+
+- pod warunkiem, że wszystkie zmiany w niej wynikają z decyzji tego samego aktora.
+
+---
+
+## 4. Przykład - zgodny z SRP
+
+Rozdzielamy odpowiedzialności na osobne klasy:
+
+```java
+class OrderRepository {
+      public void save(Order order) {
+        // zapis do bazy danych
+    }
+}
+
+class EmailService {
+      public void sendConfirmation(Order order) {
+        // wysłanie maila do klienta
+    }
+}
+
+class InvoicePrinter  {
+      public void print(Order order) {
+        // drukowanie faktury
+    }
+}
+```
+
+**Co zyskujemy?**
+
+Każda klasa odpowiada za jeden obszar:
+
+- Klasa `OrderRepository` odpowiada za zapis danych,
+- Klasa `EmailService` odpowiada za wysyłanie wiadomości,
+- Klasa `InvoicePrinter` odpowiada za generowanie faktur.
+
+Jeżeli zmieni się sposób wysyłki maili - modyfikujemy tylko klasę `EmailService`.
+
+Jeżeli zmieni się format faktur - modyfikujemy tylko klasę `InvoicePrinter`.
+
+---
+
+## 5. Dlaczego SRP jest ważne?
+
+**Kod jest łatwiejszy do zrozumienia** - zamiast jednej klasy liczącej 1000 linii kodu i 20 różnych zadań, tworzymy klasy, których nazwy wskazują, za co odpowiadają.
+
+**Łatwiej wprowadzić zmiany** - zmiana w jednym miejscu nie wywołuje lawiny zmian w innych częściach systemu.
+
+**Łatwiej pisać testy** - testowanie klasy z jedną odpowiedzialnością jest łatwiejsze niż testowanie klasy, która realizuje wiele różnych funkcji
+
+**Mniejsze ryzyko błędów** - modyfikując kod odpowiedzialny za wysyłanie wiadomości, nie ryzykujemy przypadkowego uszkodzenia logiki związanej z fakturami.
+
+---
+
+## 6. Kiedy stosować?
+
+- Gdy klasa ma więcej niż jeden powód do zmiany.
+- Gdy modyfikacja jednej funkcji wymusza zmiany w innych miejscach.
+- Gdy testowanie klasy jest trudne, bo robi za dużo.
+- Gdy klasa ma wiele niepowiązanych metod.
+- Gdy trudno jednym zdaniem opisać odpowiedzialność klasy.
+
+> Dobra klasa robi jedną rzecz dobrze.
+> Dzięki temu kod jest prostszy, czytelniejszy i łatwiejszy do rozwijania.

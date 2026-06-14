@@ -28,7 +28,7 @@ export const principles: Principle[] = [
     name: "Single Responsibility",
     fullName: "Single Responsibility Principle",
     tagline: "Jedna klasa — jeden powód do zmiany",
-    status: "in-progress",
+    status: "done",
   },
   {
     slug: "ocp",
@@ -36,7 +36,7 @@ export const principles: Principle[] = [
     name: "Open / Closed",
     fullName: "Open/Closed Principle",
     tagline: "Otwarte na rozszerzenie, zamknięte na modyfikację",
-    status: "todo",
+    status: "done",
   },
   {
     slug: "lsp",
@@ -44,7 +44,7 @@ export const principles: Principle[] = [
     name: "Liskov Substitution",
     fullName: "Liskov Substitution Principle",
     tagline: "Podklasa musi być wymienialnym zastępcą nadklasy",
-    status: "todo",
+    status: "done",
   },
   {
     slug: "isp",
@@ -52,7 +52,7 @@ export const principles: Principle[] = [
     name: "Interface Segregation",
     fullName: "Interface Segregation Principle",
     tagline: "Wiele małych interfejsów zamiast jednego dużego",
-    status: "todo",
+    status: "done",
   },
   {
     slug: "dip",
@@ -60,7 +60,7 @@ export const principles: Principle[] = [
     name: "Dependency Inversion",
     fullName: "Dependency Inversion Principle",
     tagline: "Zależności od abstrakcji, nie od konkretów",
-    status: "todo",
+    status: "done",
   },
 ];
 
