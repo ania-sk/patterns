@@ -1,0 +1,387 @@
+## 1. Definicja
+
+**Singleton** to kreacyjny wzorzec projektowy, którego celem jest zapewnienie,
+że w całej aplikacji istnieje tylko **jedna instancja danej klasy** oraz udostępnienie **globalnego punktu dostępu** do tego obiektu
+
+Najprościej rzecz ujmując: **jeden obiekt = jeden egzemplarz na całą aplikację.**
+
+Wzorzec ten należy do grupy **wzorców kreacyjnych** (ang. _creational patterns_) czyli takich,
+które zajmują się sposobem tworzenia obiektów. Singleton jest prawdopodobnie najczęściej rozpoznawanym wzorcem z całej rodziny GoF (Gang of Four),
+a jednocześnie jednym z tych, które najłatwiej nadużyć.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie hotel, w którym mieszka kilkuset gości. Jedni chcą odebrać klucz do pokoju, inni zgłaszają awarię klimatyzacji,
+jeszcze inni pytają o godzinę śniadania.
+
+Niezależnie od sprawy wszyscy kierują się do tego samego miejsca, czyli recepcji.
+
+Recepcja:
+
+- przechowuje informacje o rezerwacjach,
+- wydaje klucze do pokoi,
+- przyjmuje zgłoszenia od gości,
+- udziela informacji o hotelu.
+
+Nie tworzymy osobnej recepcji dla każdego gościa. Gdyby tak było, informacje o wolnych pokojach, rezerwacjach i
+gościach byłyby rozproszone w wielu miejscach, co szybko doprowadziłoby do chaosu.
+
+W praktyce istnieje jedna recepcja, która stanowi centralny punkt zarządzania informacjami.
+
+Podobnie działa Singleton.
+
+Wyobraźmy sobie, że wiele różnych klas w aplikacji potrzebuje dostępu do bazy danych. Nie chcemy, aby każda z nich tworzyła własne
+połączenie i niezależnie zarządzała komunikacją z bazą.
+
+Zamiast tego tworzymy jeden obiekt odpowiedzialny za dostęp do bazy danych i udostępniamy go wszystkim zainteresowanym elementom systemu.
+
+Tak jak wszyscy goście korzystają z jednej recepcji, tak różne części programu korzystają z jednej instancji obiektu.
+
+To właśnie jest idea Singletona **jedna instancja dostępna dla wszystkich**.
+
+---
+
+## 3. Przykład — naruszenie (bez Singletona)
+
+Wyobraźmy sobie, że tworzymy system logowania zdarzeń dla aplikacji e-commerce. Każdy komponent serwis
+zamówień, serwis płatności, serwis wysyłki tworzy własny logger.
+
+```java
+// Logger bez Singletona — każdy tworzy swoją instancję
+class Logger {
+
+    private List<String> logi = new ArrayList<>();
+
+    // Publiczny konstruktor pozwala tworzyć dowolną liczbę instancji
+    public Logger() {
+        System.out.println("Tworzę nowy Logger...");
+    }
+
+    public void log(String wiadomosc) {
+        logi.add(wiadomosc);
+        System.out.println("[LOG] " + wiadomosc);
+    }
+
+    public List<String> pobierzLogi() {
+        return logi;
+    }
+}
+```
+
+```java
+class OrderService {
+
+    // Każdy serwis tworzy własny Logger — zupełnie niezależny obiekt
+    private Logger logger = new Logger();
+
+    public void zlozZamowienie(String produkt) {
+        logger.log("Złożono zamówienie: " + produkt);
+    }
+}
+
+class PaymentService {
+
+    // Kolejna oddzielna instancja Loggera — inna lista logów!
+    private Logger logger = new Logger();
+
+    public void przetworzPlatnosc(double kwota) {
+        logger.log("Przetworzono płatność: " + kwota + " PLN");
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        OrderService orderService = new OrderService();
+        PaymentService paymentService = new PaymentService();
+
+        orderService.zlozZamowienie("Laptop");
+        paymentService.przetworzPlatnosc(3499.99);
+
+        // Próbujemy zebrać wszystkie logi — ale każdy serwis ma swoje!
+        // Nie istnieje żaden wspólny rejestr zdarzeń
+        // Mamy dwa oddzielne obiekty Logger, dwie oddzielne listy logów
+        // Niemożliwe jest zebranie pełnej historii zdarzeń w jednym miejscu
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Każdy serwis działa na swoim prywatnym Loggerze. Logi z zamówień istnieją oddzielnie od logów płatności,
+nie ma jednego, spójnego rejestru zdarzeń. Gdybyśmy chcieli sprawdzić pełną ścieżkę konkretnego zamówienia od
+złożenia do płatności, musielibyśmy agregować dane z wielu niezależnych obiektów.
+
+**Konkretne konsekwencje:**
+
+- **brak spójności stanu** — każda instancja ma własną, izolowaną listę logów,
+- **niemożliwa agregacja** — nie da się zebrać pełnej historii zdarzeń,
+- **marnotrawstwo zasobów** — przy połączeniach z bazą danych oznacza to setki otwartych socketów,
+- **trudność w testowaniu** — nie wiadomo, która instancja powinna być weryfikowana.
+
+---
+
+## 4. Przykład — zgodny ze wzorcem Singleton
+
+Podejdźmy do tego lepiej. Chcemy, aby istniał **jeden i tylko jeden** Logger, dostępny dla całej aplikacji.
+
+### Wersja klasyczna (thread-unsafe — dla zrozumienia idei)
+
+```java
+class Logger {
+
+    // Statyczne pole przechowujące jedyną instancję klasy
+    // null oznacza, że instancja jeszcze nie została utworzona
+    private static Logger instancja = null;
+
+    // Lista logów — wspólna dla całej aplikacji
+    private List<String> logi = new ArrayList<>();
+
+    // Prywatny konstruktor — nikt z zewnątrz nie może wywołać new Logger()
+    private Logger() {
+        System.out.println("Logger zainicjalizowany — tylko raz!");
+    }
+
+    // Statyczna metoda fabrykująca — jedyny sposób na uzyskanie instancji
+    public static Logger pobierzInstancje() {
+        if (instancja == null) {
+            // Tworzymy instancję tylko wtedy, gdy jeszcze nie istnieje
+            instancja = new Logger();
+        }
+        return instancja;
+    }
+
+    public void log(String wiadomosc) {
+        logi.add(wiadomosc);
+        System.out.println("[LOG] " + wiadomosc);
+    }
+
+    public List<String> pobierzLogi() {
+        return Collections.unmodifiableList(logi);
+    }
+}
+```
+
+```java
+class OrderService {
+
+    public void zlozZamowienie(String produkt) {
+        // Nie tworzymy nowego Loggera — pobieramy jedyną istniejącą instancję
+        Logger.pobierzInstancje().log("Złożono zamówienie: " + produkt);
+    }
+}
+
+class PaymentService {
+
+    public void przetworzPlatnosc(double kwota) {
+        // Ta sama instancja co w OrderService — ten sam rejestr logów
+        Logger.pobierzInstancje().log("Przetworzono płatność: " + kwota + " PLN");
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        OrderService orderService = new OrderService();
+        PaymentService paymentService = new PaymentService();
+
+        orderService.zlozZamowienie("Laptop");
+        paymentService.przetworzPlatnosc(3499.99);
+
+        // Teraz możemy zebrać WSZYSTKIE logi z jednego miejsca
+        List<String> wszystkieLogi = Logger.pobierzInstancje().pobierzLogi();
+        System.out.println("Historia zdarzeń: " + wszystkieLogi);
+        // → [Złożono zamówienie: Laptop, Przetworzono płatność: 3499.99 PLN]
+    }
+}
+```
+
+### Wersja bezpieczna dla wielu wątków (thread-safe)
+
+W rzeczywistych aplikacjach wiele wątków może jednocześnie wywołać `pobierzInstancje()`. Wersja klasyczna ma tu lukę —
+dwa wątki mogą jednocześnie przejść przez warunek `if (instancja == null)` i stworzyć dwie instancje. Rozwiązaniem jest
+technika **double-checked locking**:
+
+```java
+class Logger {
+
+    // volatile gwarantuje, że zapis do pola będzie widoczny dla wszystkich wątków
+    private static volatile Logger instancja = null;
+
+    private List<String> logi = new ArrayList<>();
+
+    private Logger() {}
+
+    public static Logger pobierzInstancje() {
+        // Pierwsze sprawdzenie — bez synchronizacji (szybka ścieżka)
+        if (instancja == null) {
+            // Synchronizacja tylko przy tworzeniu instancji — nie przy każdym dostępie
+            synchronized (Logger.class) {
+                // Drugie sprawdzenie — już wewnątrz bloku synchronized
+                // Zabezpiecza przed sytuacją, gdy dwa wątki przeszły pierwsze sprawdzenie
+                if (instancja == null) {
+                    instancja = new Logger();
+                }
+            }
+        }
+        return instancja;
+    }
+
+    public synchronized void log(String wiadomosc) {
+        // synchronized na metodzie — zapis do listy jest bezpieczny wątkowo
+        logi.add(wiadomosc);
+    }
+}
+```
+
+### Wersja nowoczesna — Enum Singleton (rekomendowana w Javie)
+
+Joshua Bloch w _Effective Java_ rekomenduje implementację Singletona przez `enum` — eliminuje ona problemy z serializacją i refleksją:
+
+```java
+// Enum gwarantuje dokładnie jedną instancję na poziomie JVM
+// Serializacja jest obsługiwana automatycznie
+// Refleksja nie może złamać prywatności konstruktora
+enum Logger {
+
+    INSTANCJA; // jedyna instancja — tworzona przez JVM przy pierwszym użyciu
+
+    private final List<String> logi = new ArrayList<>();
+
+    public synchronized void log(String wiadomosc) {
+        logi.add(wiadomosc);
+        System.out.println("[LOG] " + wiadomosc);
+    }
+
+    public List<String> pobierzLogi() {
+        return Collections.unmodifiableList(logi);
+    }
+}
+```
+
+```java
+// Użycie jest równie proste:
+Logger.INSTANCJA.log("Zamówienie złożone");
+```
+
+---
+
+## 5. Diagram — jak działa Singleton?
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        APLIKACJA                                │
+│                                                                 │
+│   OrderService          PaymentService         ShippingService  │
+│       │                      │                      │           │
+│       │ pobierzInstancje()   │ pobierzInstancje()   │           │
+│       └──────────────────────┴──────────────────────┘           │
+│                             │                                   │
+│                             ▼                                   │
+│                  ┌──────────────────┐                           │
+│                  │  Logger          │  ← jedyna instancja       │
+│                  │  ──────────────  │    w pamięci JVM          │
+│                  │  instancja: ●────┼──► [ten obiekt]           │
+│                  │  logi: [...]     │                           │
+│                  └──────────────────┘                           │
+│                                                                 │
+│  Każde wywołanie pobierzInstancje() zwraca TEN SAM obiekt       │
+└─────────────────────────────────────────────────────────────────┘
+
+
+Przepływ tworzenia instancji:
+
+  Pierwsze wywołanie:          Kolejne wywołania:
+  ──────────────────           ──────────────────
+  pobierzInstancje()           pobierzInstancje()
+         │                            │
+         ▼                            ▼
+   instancja == null?          instancja == null?
+         │ TAK                        │ NIE
+         ▼                            ▼
+   new Logger()              zwróć istniejącą
+         │                      instancję
+         ▼                     (bez tworzenia)
+   zapisz w polu
+   statycznym
+         │
+         ▼
+   zwróć instancję
+```
+
+---
+
+## 6. Dlaczego Singleton jest ważny?
+
+**Kontrola nad zasobami** — połączenia z bazą danych, gniazda sieciowe, uchwyty do plików konfiguracyjnych to
+zasoby, których liczba jest ograniczona. Singleton gwarantuje, że tworzymy je dokładnie raz.
+
+**Spójność stanu** — gdy wiele komponentów aplikacji operuje na tym samym obiekcie, mamy pewność, że wszystkie
+widzą ten sam stan. Nie ma niespójności wynikającej z istnienia wielu kopii.
+
+**Globalny punkt dostępu** — nie trzeba przekazywać referencji przez konstruktory kolejnych klas. Każdy komponent
+może pobrać instancję bezpośrednio.
+
+**Wpływ na pracę zespołu** — wyraźna konwencja: klasa z metodą `pobierzInstancje()` jest sygnałem dla całego zespołu,
+że chodzi o zasób współdzielony. To ogranicza przypadkowe tworzenie duplikatów.
+
+### Kiedy Singleton sprawia problemy?
+
+Singleton ma swoich krytyków — i nie bez powodu. Warto znać ciemną stronę wzorca:
+
+- **Ukryta zależność** — klasy używające Singletona nie deklarują tej zależności w konstruktorze. To utrudnia zrozumienie,
+  od czego klasa naprawdę zależy.
+- **Trudność w testowaniu** — Singleton globalny stan sprawia, że testy mogą na siebie wpływać. Jeden test modyfikuje Singletona,
+  kolejny test dostaje zmieniony stan.
+- **Naruszenie SRP** — klasa Singleton zarządza własnym cyklem życia i wykonuje swoją główną odpowiedzialność.
+- **Problemy ze skalowaniem** — w architekturach wieloserwerowych (mikroserwisy) Singleton gwarantuje jedyność tylko w
+  ramach jednej instancji JVM.
+
+> W nowoczesnych aplikacjach Spring i inne kontenery IoC przejęły odpowiedzialność za zarządzanie cyklem życia obiektów.
+> `@Component` w Springu jest domyślnie Singletonem — tworzonym i zarządzanym przez kontener, bez wad klasycznej implementacji.
+
+---
+
+## 7. Kiedy stosować?
+
+**Singleton ma sens, gdy:**
+
+- obiekt zarządza **współdzielonym zasobem** (pula połączeń, konfiguracja, rejestr zdarzeń),
+- tworzenie obiektu jest **kosztowne** i nie ma sensu robić tego wielokrotnie,
+- potrzebujemy **jednego punktu koordynacji** w aplikacji (np. menedżer wątków, cache),
+- pracujemy z **zewnętrznym API** wymagającym jednej sesji (sterownik drukarki, połączenie z urządzeniem).
+
+**Singleton w popularnych frameworkach:**
+
+- **Spring Framework** — każdy `@Bean` jest domyślnie Singletonem w kontekście aplikacji (`ApplicationContext`),
+- **Hibernate** — `SessionFactory` jest klasycznym Singletonem: kosztowna inicjalizacja, wielokrotne użycie,
+- **Java Runtime** — `Runtime.getRuntime()` zwraca Singleton reprezentujący środowisko JVM.
+
+**Sygnały, że Singleton to dobry wybór:**
+
+- musisz zapewnić **jeden punkt zapisu logów** dla całej aplikacji,
+- tworzysz **pulę połączeń** z bazą danych,
+- ładujesz **konfigurację z pliku** — wczytaj raz, używaj wszędzie,
+- implementujesz **cache** — jeden obiekt przechowuje wspólny bufor danych.
+
+**Sygnały ostrzegawcze — rozważ alternatywę (Dependency Injection):**
+
+- instancja Singletona przechowuje **stan zmieniany przez wiele komponentów**,
+- klasy używające Singletona są **trudne do testowania jednostkowego**,
+- potrzebujesz **różnych konfiguracji** Singletona w różnych środowiskach (dev/prod).
+
+---
+
+Trzy filary wzorca do zapamiętania:
+
+```
+1. PRYWATNY konstruktor    → nikt nie może zrobić new Logger()
+2. STATYCZNE pole          → instancja żyje na poziomie klasy, nie obiektu
+3. STATYCZNA metoda        → jedyna brama wejściowa do instancji
+```

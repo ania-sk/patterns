@@ -1,0 +1,384 @@
+## 1. Definicja
+
+**Builder** to kreacyjny wzorzec projektowy, który pozwala tworzyć złożone obiekty **krok po kroku**,
+oddzielając proces budowania obiektu od jego reprezentacji.
+
+> Separate the construction of a complex object from its representation so that the same construction
+> process can create different representations.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **zamiast jednego gigantycznego konstruktora, składamy obiekt z części —
+tylko tych, których potrzebujemy.**
+
+Builder należy do grupy **wzorców kreacyjnych**, podobnie jak Singleton. Tam gdzie Singleton rozwiązuje
+problem _ile_ instancji, Builder rozwiązuje problem _jak_ tworzyć instancje, szczególnie gdy obiekty mają wiele
+parametrów, z których część jest opcjonalna.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że zamawiamy burgera w restauracji.
+
+Burger składa się z dziesiątek możliwych składników: bułka (pszenna, razowa, bezglutenowa), mięso (wołowe, drobiowe, roślinne),
+ser (cheddar, gouda, bez sera), sałata, pomidor, ogórek, cebula, sos (majonez, ketchup, BBQ, musztarda), stopień wysmażenia, podwójne mięso, bekon...
+
+Wyobraźmy sobie teraz, że kelner podchodzi do nas i pyta: _„Proszę podać wszystkie parametry burgera w jednym zdaniu,
+w ustalonej kolejności."_
+
+```
+zamówBurgera("pszenna", "wołowe", "cheddar", true, false, true, false, "BBQ", "medium", false, true)
+```
+
+Czy pamiętamy, co oznacza szósty `false`? Czy sałata to trzeci czy czwarty parametr? A co jeśli chcemy burgera bez sera,
+czy wpisujemy `null`, pusty string, czy `false`?
+
+To jest dokładnie problem, który rozwiązuje Builder.
+
+W dobrej restauracji zamawiamy inaczej:
+
+_„Poproszę bułkę pszenną. Mięso wołowe, wysmażone medium. Ser cheddar. Bez ogórka. Sos BBQ. I bekon."_
+
+Mówimy **tylko o tym, czego chcemy**, pomijamy to, czego nie potrzebujemy, a kucharz (Builder) składa burgera krok po
+kroku według naszych wytycznych.
+
+Ćwiczenie myślowe: zanim przejdziemy do kodu, wyobraźmy sobie, że tworzymy obiekt reprezentujący **zapytanie HTTP**.
+Ma adres URL, metodę (GET/POST), nagłówki, parametry query, ciało żądania, timeout, dane uwierzytelniające, proxy...
+Większość z tych pól jest opcjonalna. Jak chcielibyśmy tworzyć taki obiekt? Właśnie — krok po kroku, podając tylko to, co potrzebne.
+
+---
+
+## 3. Przykład — naruszenie (bez Buildera)
+
+Wyobraźmy sobie, że tworzymy system do generowania raportów w aplikacji HR. Raport ma wiele parametrów konfiguracyjnych takich jak
+tytuł, zakres dat, format eksportu, filtry, stopkę, logo firmy...
+
+Naturalnym, ale złym odruchem jest stworzenie klasy z konstruktorem przyjmującym wszystkie parametry naraz.
+
+```java
+class Raport {
+
+    private String tytul;
+    private String dataOd;
+    private String dataDo;
+    private String format;         // PDF, CSV, XLSX
+    private boolean zawierajWykres;
+    private boolean zawierajStopke;
+    private String logoFirmy;
+    private String jezyk;
+    private int limitWierszy;
+    private boolean grupujDzialy;
+
+    // Konstruktor "teleskopowy" — każda kombinacja opcji wymaga osobnego konstruktora
+    // lub jednego gigantycznego z wieloma parametrami
+    public Raport(String tytul, String dataOd, String dataDo, String format,
+                  boolean zawierajWykres, boolean zawierajStopke, String logoFirmy,
+                  String jezyk, int limitWierszy, boolean grupujDzialy) {
+        this.tytul = tytul;
+        this.dataOd = dataOd;
+        this.dataDo = dataDo;
+        this.format = format;
+        this.zawierajWykres = zawierajWykres;
+        this.zawierajStopke = zawierajStopke;
+        this.logoFirmy = logoFirmy;
+        this.jezyk = jezyk;
+        this.limitWierszy = limitWierszy;
+        this.grupujDzialy = grupujDzialy;
+    }
+
+    // Może próbujemy ratować się konstruktorami z mniejszą liczbą parametrów...
+    public Raport(String tytul, String dataOd, String dataDo, String format) {
+        // ...ale to tylko przesuwa problem — co z resztą pól? null? wartości domyślne?
+        this(tytul, dataOd, dataDo, format, false, false, null, "pl", 1000, false);
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Który parametr odpowiada za co? Czy trzeci boolean to wykres czy stopka?
+        // Czy null jako logoFirmy spowoduje NullPointerException gdzieś w środku?
+        Raport raport = new Raport(
+            "Raport miesięczny",
+            "2024-01-01",
+            "2024-01-31",
+            "PDF",
+            true,        // zawierajWykres? zawierajStopke? nie wiadomo bez sprawdzenia sygnatur
+            false,
+            null,        // logoFirmy — null oznacza "bez logo" czy "błąd"?
+            "pl",
+            500,
+            true
+        );
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Ten antywzorzec ma nawet swoją nazwę: **konstruktor teleskopowy** (_telescoping constructor_). Parametrów przybywa,
+czytelność spada, a każde wywołanie konstruktora to zagadka — trzeba zajrzeć do dokumentacji lub sygnatury,
+by wiedzieć, co oznacza piąty argument.
+
+**Konkretne konsekwencje:**
+
+- **nieczytelność wywołania** — ciąg `true, false, null, "pl"` nic nie mówi bez kontekstu,
+- **podatność na błędy kolejności** — zamiana miejscami dwóch parametrów tego samego typu (`String`) nie spowoduje
+  błędu kompilacji, ale zmieni zachowanie programu,
+- **trudność rozbudowy** — dodanie nowego parametru wymaga zmiany wszystkich wywołań konstruktora w projekcie,
+- **niemożność walidacji częściowej** — nie można zweryfikować poprawności obiektu na etapie budowania.
+
+---
+
+## 4. Przykład — zgodny z wzorcem Builder
+
+Podejdźmy do tego lepiej. Zamiast przekazywać wszystko naraz, będziemy składać raport krok po kroku — jak zamówienie w restauracji.
+
+```java
+class Raport {
+
+    // Pola klasy — teraz tylko do odczytu (immutable object)
+    private final String tytul;
+    private final String dataOd;
+    private final String dataDo;
+    private final String format;
+    private final boolean zawierajWykres;
+    private final boolean zawierajStopke;
+    private final String logoFirmy;
+    private final String jezyk;
+    private final int limitWierszy;
+    private final boolean grupujDzialy;
+
+    // Prywatny konstruktor — dostęp tylko przez Buildera
+    // Nikt z zewnątrz nie może stworzyć Raportu bezpośrednio
+    private Raport(Builder builder) {
+        this.tytul = builder.tytul;
+        this.dataOd = builder.dataOd;
+        this.dataDo = builder.dataDo;
+        this.format = builder.format;
+        this.zawierajWykres = builder.zawierajWykres;
+        this.zawierajStopke = builder.zawierajStopke;
+        this.logoFirmy = builder.logoFirmy;
+        this.jezyk = builder.jezyk;
+        this.limitWierszy = builder.limitWierszy;
+        this.grupujDzialy = builder.grupujDzialy;
+    }
+
+    // Statyczna klasa wewnętrzna — Builder
+    public static class Builder {
+
+        // Pola wymagane — muszą być podane przy tworzeniu Buildera
+        private final String tytul;
+        private final String dataOd;
+        private final String dataDo;
+
+        // Pola opcjonalne — mają wartości domyślne
+        private String format = "PDF";
+        private boolean zawierajWykres = false;
+        private boolean zawierajStopke = true;
+        private String logoFirmy = null;
+        private String jezyk = "pl";
+        private int limitWierszy = 1000;
+        private boolean grupujDzialy = false;
+
+        // Konstruktor Buildera przyjmuje tylko pola obowiązkowe
+        public Builder(String tytul, String dataOd, String dataDo) {
+            this.tytul = tytul;
+            this.dataOd = dataOd;
+            this.dataDo = dataDo;
+        }
+
+        // Każda metoda ustawia jedno pole i zwraca this — umożliwia łańcuchowanie wywołań
+        public Builder format(String format) {
+            this.format = format;
+            return this;
+        }
+
+        public Builder zawierajWykres(boolean zawierajWykres) {
+            this.zawierajWykres = zawierajWykres;
+            return this;
+        }
+
+        public Builder zawierajStopke(boolean zawierajStopke) {
+            this.zawierajStopke = zawierajStopke;
+            return this;
+        }
+
+        public Builder logoFirmy(String sciezkaDoLogo) {
+            this.logoFirmy = sciezkaDoLogo;
+            return this;
+        }
+
+        public Builder jezyk(String jezyk) {
+            this.jezyk = jezyk;
+            return this;
+        }
+
+        public Builder limitWierszy(int limit) {
+            this.limitWierszy = limit;
+            return this;
+        }
+
+        public Builder grupujDzialy(boolean grupuj) {
+            this.grupujDzialy = grupuj;
+            return this;
+        }
+
+        // Metoda build() — finalizuje budowanie, opcjonalnie waliduje stan
+        public Raport build() {
+            // Możemy tutaj walidować, czy kombinacja parametrów ma sens
+            if (limitWierszy <= 0) {
+                throw new IllegalStateException("Limit wierszy musi być większy od zera");
+            }
+            if (dataOd.compareTo(dataDo) > 0) {
+                throw new IllegalStateException("Data 'od' nie może być późniejsza niż data 'do'");
+            }
+            // Obiekt Raport jest tworzony tylko tutaj — w pełni skonfigurowany i zwalidowany
+            return new Raport(this);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "Raport{tytul='" + tytul + "', format=" + format +
+               ", zakres=" + dataOd + " — " + dataDo + "}";
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Przypadek 1: prosty raport miesięczny — tylko to, co potrzebne
+        Raport raportMiesieczny = new Raport.Builder("Raport miesięczny", "2024-01-01", "2024-01-31")
+                .format("PDF")
+                .zawierajWykres(true)
+                .grupujDzialy(true)
+                .build();
+
+        // Przypadek 2: pełny raport kwartalny z logo i limitem
+        Raport raportKwartalny = new Raport.Builder("Raport Q1 2024", "2024-01-01", "2024-03-31")
+                .format("XLSX")
+                .logoFirmy("/assets/logo.png")
+                .jezyk("en")
+                .limitWierszy(500)
+                .zawierajStopke(false)
+                .build();
+
+        // Przypadek 3: minimalny raport — tylko pola obowiązkowe, reszta domyślna
+        Raport raportMinimalny = new Raport.Builder("Raport dzienny", "2024-01-15", "2024-01-15")
+                .build();
+
+        System.out.println(raportMiesieczny);
+        System.out.println(raportKwartalny);
+        System.out.println(raportMinimalny);
+    }
+}
+```
+
+**Co zyskujemy?**
+
+Każde wywołanie mówi samo za siebie — `.format("PDF")`, `.zawierajWykres(true)`, `.limitWierszy(500)`. Nie ma żadnych anonimowych
+`true, false, null` w środku listy argumentów. Dodanie nowego parametru do Buildera nie psuje istniejących wywołań,
+po prostu ma wartość domyślną. Walidacja w metodzie `build()` gwarantuje, że nigdy nie stworzymy obiektu w niepoprawnym stanie.
+
+---
+
+## 5. Diagram — struktura wzorca Builder
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         WZORZEC BUILDER                             │
+│                                                                     │
+│   ┌─────────────┐    tworzy     ┌──────────────────────────────┐    │
+│   │   Director  │──────────────►│         Builder              │    │
+│   │  (opcjonalny│               │  ────────────────────────    │    │
+│   │   w Javie)  │               │  + format(String): Builder   │    │
+│   └─────────────┘               │  + zawierajWykres(): Builder │    │
+│                                 │  + limitWierszy(): Builder   │    │
+│                                 │  + build(): Raport           │    │
+│                                 └──────────────┬───────────────┘    │
+│                                                │ zwraca             │
+│                                                ▼                    │
+│                                 ┌──────────────────────────────┐    │
+│                                 │           Raport             │    │
+│                                 │  ────────────────────────    │    │
+│                                 │  - tytul: String             │    │
+│                                 │  - format: String            │    │
+│                                 │  - zawierajWykres: boolean   │    │
+│                                 │  - limitWierszy: int         │    │
+│                                 │ (wszystkie final — immutable)│    │
+│                                 └──────────────────────────────┘    │
+│                                                                     │
+│  Łańcuchowanie wywołań (fluent interface):                          │
+│                                                                     │
+│  new Builder("tytuł", "od", "do")                                   │
+│      .format("PDF")          ← zwraca Builder                       │
+│      .zawierajWykres(true)   ← zwraca Builder                       │
+│      .limitWierszy(500)      ← zwraca Builder                       │
+│      .build()                ← zwraca gotowy Raport                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Dlaczego Builder jest ważny?
+
+**Czytelność kodu** — każdy parametr jest nazwany w miejscu wywołania. Za sześć miesięcy, czytając `.zawierajWykres(true)`,
+natychmiast wiemy, co to oznacza. Czytając `true` jako szósty argument konstruktora już nie.
+
+**Ochrona przed błędami kolejności** — gdy mamy dwa parametry typu `String` (np. `dataOd` i `dataDo`), kompilator
+nie ostrzeże nas, gdy je zamienimy. Builder eliminuje ten problem, bo każda właściwość ma swoją nazwę.
+
+**Elastyczność domyślnych wartości** — zamiast tworzyć pięć przeciążonych konstruktorów dla różnych kombinacji opcji,
+Builder oferuje jedną spójną ścieżkę z sensownymi domyślnymi.
+
+**Tworzenie obiektów immutable** — Builder pozwala wypełniać pola stopniowo, a dopiero `build()` tworzy finalny,
+niezmienny obiekt. To złoty środek między elastycznością tworzenia a bezpieczeństwem gotowego obiektu.
+
+**Wpływ na pracę zespołu** — gdy nowy developer dołącza do projektu, wywołanie Buildera dokumentuje się samo.
+Nie trzeba zaglądać do Javadoc, by wiedzieć, co budujemy.
+
+**Walidacja w jednym miejscu** — cała logika sprawdzania poprawności parametrów żyje w metodzie `build()`.
+Nie ma rozrzuconych `if`-ów w konstruktorach i setterach.
+
+---
+
+## 7. Kiedy stosować?
+
+**Builder ma sens, gdy:**
+
+- obiekt ma **więcej niż 4–5 parametrów konstruktora**, szczególnie gdy część z nich jest opcjonalna,
+- chcemy tworzyć **obiekty immutable** bez kompromisów w czytelności,
+- **różne kombinacje parametrów** prowadzą do różnych wariantów obiektu,
+- zależy nam na **walidacji stanu obiektu** przed jego użyciem,
+- API jest publiczne i chcemy, by **wywołania były samodokumentujące się**.
+
+**Builder w popularnych bibliotekach Javy:**
+
+- **`StringBuilder`** — klasyczny przykład z JDK: `new StringBuilder().append("Hello").append(", ").append("World").toString()`,
+- **`HttpClient` (Java 11+)** — `HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()`,
+- **`Stream.Builder`** — budowanie strumienia element po elemencie,
+- **Lombok `@Builder`** — adnotacja generująca cały kod Buildera automatycznie,
+- **Spring `MockMvcRequestBuilders`** — budowanie żądań HTTP w testach,
+- **Hibernate `CriteriaBuilder`** — programowe budowanie zapytań do bazy danych.
+
+**Sygnały, że czas wprowadzić Buildera:**
+
+- w konstruktorze masz więcej niż dwa parametry tego samego typu obok siebie,
+- tworzysz wiele przeciążonych konstruktorów dla różnych kombinacji opcji,
+- używasz setterów zaraz po wywołaniu konstruktora, by "dokończyć" inicjalizację obiektu,
+- w code review ktoś pyta: _„Co oznacza ten czwarty `null`?"_
+
+---
+
+Trzy kroki Buildera do zapamiętania:
+
+```
+1. Builder(pola_obowiązkowe)   → definiujemy to, bez czego obiekt nie ma sensu
+2. .opcja(wartość)             → dokładamy tylko to, czego potrzebujemy
+3. .build()                    → finalizujemy i walidujemy — dostajemy gotowy obiekt
+```

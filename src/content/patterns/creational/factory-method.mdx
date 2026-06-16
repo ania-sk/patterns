@@ -1,0 +1,292 @@
+> **Powiązany wzorzec:** ta notatka omawia Factory Method — prostszą z dwóch fabryk GoF.
+> Gdy ją przyswoisz, przejdź do [Abstract Factory](/patterns/abstract-factory), która rozszerza tę ideę na całe rodziny obiektów.
+
+---
+
+## 1. Definicja
+
+**Factory Method** to kreacyjny wzorzec projektowy, który definiuje interfejs do tworzenia obiektów, ale pozwala podklasom (lub dedykowanej metodzie) decydować, jaką klasę konkretną instancjonować.
+
+> Define an interface for creating an object, but let subclasses decide which class to instantiate.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **nie twórz obiektów bezpośrednio — oddaj tę odpowiedzialność dedykowanej metodzie.**
+
+Wzorzec należy do grupy **wzorców kreacyjnych**. Jego cel to **oddzielenie kodu, który używa obiektów, od kodu, który je tworzy**.
+Dzięki temu możemy zmieniać, co jest tworzone, bez modyfikowania kodu, który z tych obiektów korzysta.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie sieć kawiarni, działającą w kilku miastach i nazwijmy ją _QuickCafe_.
+
+Każda kawiarnia serwuje kawę. Ale kawa w Warszawie to espresso na ziarnach z Etiopii, w Krakowie
+kawa po turecku, a w Gdańsku cold brew. Klient zawsze zamawia „kawę", nie wie i nie musi wiedzieć,
+jak jest przyrządzana. Każda kawiarnia wie to sama.
+
+Złym podejściem byłoby, gdyby centrala wysyłała bariście instrukcję: _„Jeśli jesteś w Warszawie, zrób espresso. Jeśli w Krakowie, zrób kawę turecką..."_.
+Każde otwarcie nowej kawiarni oznacza zmianę centralnej instrukcji.
+
+Dobrym podejściem jest powiedzenie: _„Przygotuj kawę"_, a każda kawiarnia ma własną metodę robienia kawy. Centrala zna tylko słowo „kawa".
+Szczegóły tworzenia należą do kawiarni.
+
+Ćwiczenie myślowe: wyobraźmy sobie aplikację, która wysyła powiadomienia przez e-mail, SMS lub push.
+Kod wysyłający powiadomienie powinien być identyczny niezależnie od kanału. Tylko _tworzenie_ odpowiedniego obiektu powiadomienia powinno się różnić.
+To właśnie zadanie dla Factory Method.
+
+---
+
+## 3. Przykład — naruszenie (bez Factory Method)
+
+Tworzymy system powiadomień dla aplikacji e-commerce. Bez fabryki logika tworzenia obiektów jest rozrzucona po całej aplikacji.
+
+```java
+// Klasy konkretnych powiadomień — każda niezależna, bez wspólnego interfejsu
+class EmailPowiadomienie {
+    public void wyslij(String wiadomosc) {
+        System.out.println("[EMAIL] " + wiadomosc);
+    }
+}
+
+class SmsPowiadomienie {
+    public void wyslij(String wiadomosc) {
+        System.out.println("[SMS] " + wiadomosc);
+    }
+}
+
+class PushPowiadomienie {
+    public void wyslij(String wiadomosc) {
+        System.out.println("[PUSH] " + wiadomosc);
+    }
+}
+```
+
+```java
+class OrderService {
+
+    public void zlozZamowienie(String kanal, String produkt) {
+
+        // Logika biznesowa przeplata się z logiką tworzenia obiektów
+        // Każde miejsce w aplikacji musi samodzielnie wiedzieć, jak stworzyć obiekt
+        if (kanal.equals("email")) {
+            EmailPowiadomienie powiadomienie = new EmailPowiadomienie();
+            powiadomienie.wyslij("Zamówiono: " + produkt);
+        } else if (kanal.equals("sms")) {
+            SmsPowiadomienie powiadomienie = new SmsPowiadomienie();
+            powiadomienie.wyslij("Zamówiono: " + produkt);
+        } else if (kanal.equals("push")) {
+            PushPowiadomienie powiadomienie = new PushPowiadomienie();
+            powiadomienie.wyslij("Zamówiono: " + produkt);
+        }
+        // Co gdy dodamy nowy kanał "discord"?
+        // Musimy odnaleźć KAŻDY if-else w całej aplikacji i go zaktualizować
+    }
+}
+
+class PaymentService {
+
+    public void potwierdzPlatnosc(String kanal, double kwota) {
+        // Ten sam blok if-else pojawia się tutaj po raz drugi...
+        if (kanal.equals("email")) {
+            EmailPowiadomienie powiadomienie = new EmailPowiadomienie();
+            powiadomienie.wyslij("Zapłacono: " + kwota + " PLN");
+        } else if (kanal.equals("sms")) {
+            SmsPowiadomienie powiadomienie = new SmsPowiadomienie();
+            powiadomienie.wyslij("Zapłacono: " + kwota + " PLN");
+        }
+        // ...i pojawi się w ShippingService, ReturnService, i wszędzie indziej
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Każdy serwis bierze na siebie odpowiedzialność za wiedzę o tym, jak tworzyć obiekty powiadomień.
+Gdy dodamy nowy kanał, musimy odnaleźć i zaktualizować każdy blok `if-else` w całej aplikacji. Kod tworzący obiekty przeplata się z
+logiką biznesową, co utrudnia czytanie i testowanie obu.
+
+**Konkretne konsekwencje:**
+
+- **duplikacja logiki tworzenia** — ten sam `if-else` rozsiany po dziesiątkach klas,
+- **naruszenie OCP** — każde dodanie nowego kanału wymaga modyfikacji istniejących klas,
+- **silne powiązanie** — `OrderService` zna bezpośrednio klasy `EmailPowiadomienie`, `SmsPowiadomienie`,
+- **trudność testowania** — nie można podmienić implementacji powiadomienia na testową bez modyfikacji kodu.
+
+---
+
+## 4. Przykład — zgodny z Factory Method
+
+Podejdźmy do tego lepiej. Definiujemy wspólny interfejs dla powiadomień i przenosimy całą logikę tworzenia
+do jednej dedykowanej metody — fabryki.
+
+```java
+// Wspólny interfejs — każde powiadomienie umie się wysłać
+// Serwisy będą znać tylko ten interfejs, nie konkretne klasy
+interface Powiadomienie {
+    void wyslij(String wiadomosc);
+}
+```
+
+```java
+// Konkretne implementacje — teraz implementują wspólny interfejs
+class EmailPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[EMAIL] " + wiadomosc);
+    }
+}
+
+class SmsPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[SMS] " + wiadomosc);
+    }
+}
+
+class PushPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[PUSH] " + wiadomosc);
+    }
+}
+```
+
+```java
+// Fabryka — jedno miejsce odpowiedzialne za wiedzę o tym, jak tworzyć powiadomienia
+// Dodanie nowego kanału wymaga zmiany TYLKO tutaj
+class PowiadomienieFabryka {
+
+    public static Powiadomienie utworz(String kanal) {
+        return switch (kanal) {
+            case "email" -> new EmailPowiadomienie();
+            case "sms"   -> new SmsPowiadomienie();
+            case "push"  -> new PushPowiadomienie();
+            // Dodanie "discord" — jeden nowy case, zero zmian w serwisach
+            default -> throw new IllegalArgumentException("Nieznany kanał: " + kanal);
+        };
+    }
+}
+```
+
+```java
+class OrderService {
+
+    public void zlozZamowienie(String kanal, String produkt) {
+        // OrderService nie zna EmailPowiadomienie ani SmsPowiadomienie
+        // Wie tylko, że fabryka zwróci coś, co implementuje Powiadomienie
+        Powiadomienie powiadomienie = PowiadomienieFabryka.utworz(kanal);
+        powiadomienie.wyslij("Zamówiono: " + produkt);
+        // Logika biznesowa jest czysta — żadnych if-else, żadnych new XxxPowiadomienie()
+    }
+}
+
+class PaymentService {
+
+    public void potwierdzPlatnosc(String kanal, double kwota) {
+        // Ten sam wzorzec — delegujemy tworzenie do fabryki
+        Powiadomienie powiadomienie = PowiadomienieFabryka.utworz(kanal);
+        powiadomienie.wyslij("Zapłacono: " + kwota + " PLN");
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        OrderService orderService = new OrderService();
+        PaymentService paymentService = new PaymentService();
+
+        orderService.zlozZamowienie("email", "Laptop");
+        orderService.zlozZamowienie("sms", "Mysz");
+        paymentService.potwierdzPlatnosc("push", 3499.99);
+    }
+}
+```
+
+**Co zyskujemy?**
+
+Dodanie kanału Discord to stworzenie klasy `DiscordPowiadomienie implements Powiadomienie` i dopisanie jednego
+`case` w fabryce. `OrderService`, `PaymentService` i wszystkie inne serwisy nie wymagają żadnych zmian.
+Logika biznesowa jest odizolowana od logiki tworzenia obiektów.
+
+---
+
+## 5. Diagram
+
+```
+  BEZ FABRYKI:                        Z FACTORY METHOD:
+  ─────────────────────               ─────────────────────────────────
+
+  OrderService                        OrderService
+  ┌──────────────────────┐            ┌───────────────────────────┐
+  │ if email → new Email │            │ fabryka.utworz(kanal)     │
+  │ if sms   → new Sms   │            │ powiadomienie.wyslij(...) │
+  │ if push  → new Push  │            └──────────────┬────────────┘
+  └──────────────────────┘                           │ używa
+                                                     ▼
+  PaymentService                              «interface»
+  ┌──────────────────────┐                   Powiadomienie
+  │ if email → new Email │                   ┌────────────┐
+  │ if sms   → new Sms   │                   │ + wyslij() │
+  └──────────────────────┘                   └─────┬──────┘
+                                                   │ implementują
+  Zmiana kanału = N plików               ┌─────────┼──────────┐
+                                         ▼         ▼          ▼
+                                       Email      Sms        Push
+                                       Powiad.   Powiad.    Powiad.
+
+                                        PowiadomienieFabryka
+                                        ┌─────────────────────┐
+                                        │ + utworz(kanal)     │
+                                        │   → Powiadomienie   │
+                                        └─────────────────────┘
+
+                                  Zmiana kanału = 1 plik (fabryka)
+```
+
+---
+
+## 6. Dlaczego Factory Method jest ważny?
+
+**Oddzielenie tworzenia od używania** — serwisy biznesowe przestają wiedzieć, skąd biorą się obiekty. Znają tylko interfejs, resztą zajmuje się fabryka.
+
+**Zgodność z OCP** — dodanie nowego kanału powiadomień (Discord, WhatsApp) wymaga stworzenia nowej klasy i jednej linii w fabryce.
+Żadna istniejąca klasa nie jest modyfikowana.
+
+**Łatwość testowania** — w testach jednostkowych możemy podstawić fabrykę zwracającą mock zamiast prawdziwego obiektu.
+`OrderService` jest testowalny bez faktycznego wysyłania e-maili.
+
+**Enkapsulacja złożoności tworzenia** — jeśli stworzenie obiektu wymaga skomplikowanej inicjalizacji, fabryka chowa tę złożoność za prostym wywołaniem.
+
+---
+
+## 7. Kiedy stosować?
+
+**Factory Method ma sens, gdy:**
+
+- nie wiesz z góry, **jakiego konkretnego typu** obiekt będzie potrzebny — decyzja zależy od konfiguracji lub kontekstu,
+- te same bloki `if-else` tworzące obiekty **powtarzają się** w wielu miejscach aplikacji,
+- chcesz napisać test jednostkowy, ale nie możesz podmienić obiektu tworzonego przez `new` w środku metody,
+- dodanie nowego wariantu obiektu wymaga **zmian w wielu plikach**.
+
+**Factory Method w popularnych bibliotekach Javy:**
+
+- **`Calendar.getInstance()`** — zwraca implementację kalendarza odpowiednią dla bieżącej lokalizacji, bez ujawniania konkretnej klasy,
+- **`DocumentBuilderFactory.newInstance()`** — klasyczny Factory Method tworzący parser XML,
+- **JDBC `DriverManager.getConnection()`** — na podstawie URL-a decyduje, który sterownik zostanie użyty,
+- **Spring `@Bean`** — metoda w klasie `@Configuration` to nic innego jak Factory Method zarządzany przez kontener.
+
+**Sygnały, że czas wprowadzić fabrykę:**
+
+- w kodzie pojawia się `if-else` lub `switch`, który na podstawie stringa lub enuma wywołuje `new KonkretnaKlasa()`,
+- te same bloki tworzące obiekty pojawiają się w wielu miejscach aplikacji,
+- dodanie nowego wariantu wymaga zmian w wielu plikach jednocześnie.
+
+---
+
+```
+BEZ FABRYKI:   każdy serwis wie, jak tworzyć → N miejsc do zmiany
+Z FABRYKĄ:     jeden serwis wie, jak tworzyć → 1 miejsce do zmiany
+```

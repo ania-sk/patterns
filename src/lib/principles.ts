@@ -72,10 +72,14 @@ export const patternGroups: PatternGroup[] = [
     label: "Wzorce kreacyjne",
     categorySlug: "creational",
     patterns: [
-      { slug: "singleton", name: "Singleton", status: "in-progress" },
-      { slug: "builder", name: "Builder", status: "in-progress" },
-      { slug: "factory-method", name: "Factory Method", status: "todo" },
-      { slug: "abstract-factory", name: "Abstract Factory", status: "todo" },
+      { slug: "singleton", name: "Singleton", status: "done" },
+      { slug: "builder", name: "Builder", status: "done" },
+      { slug: "factory-method", name: "Factory Method", status: "in-progress" },
+      {
+        slug: "abstract-factory",
+        name: "Abstract Factory",
+        status: "in-progress",
+      },
       { slug: "prototype", name: "Prototype", status: "todo" },
     ],
   },

@@ -1,0 +1,361 @@
+> **Powiązany wzorzec:** Abstract Factory rozszerza ideę [Factory Method](/patterns/factory-method).
+> Jeśli jeszcze jej nie znasz, zacznij od tamtej notatki — Abstract Factory będzie wtedy znacznie bardziej intuicyjna.
+
+---
+
+## 1. Definicja
+
+**Abstract Factory** to kreacyjny wzorzec projektowy, który dostarcza interfejs do tworzenia **rodzin powiązanych obiektów**, bez wskazywania ich konkretnych klas.
+
+> Provide an interface for creating families of related or dependent objects without specifying their concrete classes.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **zamiast tworzyć jeden obiekt przez metodę fabrykującą, tworzymy całą rodzinę spójnych obiektów przez jeden obiekt fabryki.**
+
+Kluczowe słowo to **rodzina** — obiekty tworzone przez jedną fabrykę są ze sobą powiązane i zaprojektowane do współpracy. Fabryka gwarantuje ich spójność.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wróćmy do analogii restauracyjnej, ale podnieśmy ją o poziom wyżej.
+
+W Factory Method kawiarnia miała jedną metodę: _„przygotuj kawę"_. Ale wyobraźmy sobie teraz, że QuickCafe rozszerza działalność i
+każda restauracja serwuje teraz pełny zestaw: **kawę, ciasto i opakowanie na wynos**. I co ważne, wszystko musi być spójne z lokalnym charakterem restauracji.
+
+Restauracja w Paryżu serwuje: espresso, croissant i eleganckie pudełko w stylu bistro. Restauracja w Tokio:
+matcha latte, mochi i minimalistyczne japońskie opakowanie. Restauracja w Nowym Jorku: americano, bagel i papierową torbę z logo drapacza chmur.
+
+Gdybyśmy mieli trzy osobne Factory Methods — `utworzKawe()`, `utworzCiasto()`, `utworzOpakowanie()` —
+nic nie gwarantowałoby, że ktoś nie zamówi paryskiego espresso z tokijskim mochi i nowojorską torbą. Brak spójności.
+
+Abstract Factory to jeden obiekt — **jedna restauracja**, która produkuje całą rodzinę spójnych elementów.
+Zamawiasz w restauracji, a ona dba o to, żeby wszystko pasowało do siebie.
+
+Ćwiczenie myślowe: wyobraźmy sobie system powiadomień, gdzie każdy kanał (email, SMS) ma nie tylko sposób wysyłania,
+ale też własny **formatter wiadomości** — email może być bogaty w HTML, SMS musi być zwięzły. Abstract Factory zagwarantuje,
+że zawsze dostaniemy spójną parę: `EmailPowiadomienie` z `EmailFormatterem`, nigdy `EmailPowiadomienie` z `SmsFormatterem`.
+
+---
+
+## 3. Przykład — naruszenie (bez Abstract Factory)
+
+Rozbudowujemy system powiadomień. Teraz każde powiadomienie ma towarzyszący formatter, który dostosowuje treść do kanału.
+Bez Abstract Factory nic nie pilnuje spójności par.
+
+```java
+interface Powiadomienie {
+    void wyslij(String wiadomosc);
+}
+
+interface FormatterWiadomosci {
+    String formatuj(String tytul, String tresc);
+}
+```
+
+```java
+// Implementacje dla EMAIL
+class EmailPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[EMAIL] " + wiadomosc);
+    }
+}
+
+class EmailFormatter implements FormatterWiadomosci {
+    @Override
+    public String formatuj(String tytul, String tresc) {
+        // Email obsługuje bogaty format z nagłówkiem i stopką
+        return "Temat: " + tytul + "\n\n" + tresc + "\n\n---\nWysłano z QuickBite";
+    }
+}
+
+// Implementacje dla SMS
+class SmsPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[SMS] " + wiadomosc);
+    }
+}
+
+class SmsFormatter implements FormatterWiadomosci {
+    @Override
+    public String formatuj(String tytul, String tresc) {
+        // SMS ma limit znaków — tylko zwięzły tekst
+        return tytul.toUpperCase() + ": " + tresc;
+    }
+}
+```
+
+```java
+class SerwisWiadomosci {
+
+    public void wyslijPowiadomienie(String kanal, String tytul, String tresc) {
+
+        Powiadomienie powiadomienie;
+        FormatterWiadomosci formatter;
+
+        // Dwa oddzielne if-else — nic nie gwarantuje, że wybierzemy spójną parę
+        if (kanal.equals("email")) {
+            powiadomienie = new EmailPowiadomienie();
+        } else {
+            powiadomienie = new SmsPowiadomienie();
+        }
+
+        // Ktoś przez pomyłkę może tu wpisać inny warunek niż wyżej
+        // i dostaniemy EmailPowiadomienie z SmsFormatterem — niespójna para!
+        if (kanal.equals("sms")) {
+            formatter = new SmsFormatter();
+        } else {
+            formatter = new EmailFormatter();
+        }
+
+        String sformatowana = formatter.formatuj(tytul, tresc);
+        powiadomienie.wyslij(sformatowana);
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Każdy obiekt z rodziny jest tworzony osobno, przez oddzielne bloki `if-else`. Kompilator nie ostrzeże nas, gdy
+przez pomyłkę sparujemy `EmailPowiadomienie` z `SmsFormatterem`. Spójność rodziny zależy od ostrożności programisty, nie od struktury kodu.
+
+**Konkretne konsekwencje:**
+
+- **ryzyko niespójnych par** — nic strukturalnie nie gwarantuje, że formatter pasuje do powiadomienia,
+- **duplikacja if-else** — dla każdego nowego produktu w rodzinie kolejny blok warunkowy,
+- **trudność rozszerzania** — dodanie nowego kanału (np. push) wymaga zmian w wielu miejscach,
+- **brak enkapsulacji rodziny** — wiedza o tym, co do czego pasuje, jest rozproszona.
+
+---
+
+## 4. Przykład — zgodny z Abstract Factory
+
+Podejdźmy do tego lepiej. Tworzymy jeden obiekt — fabrykę, który odpowiada za całą rodzinę spójnych produktów.
+
+```java
+// Interfejsy produktów — niezmieniły się
+interface Powiadomienie {
+    void wyslij(String wiadomosc);
+}
+
+interface FormatterWiadomosci {
+    String formatuj(String tytul, String tresc);
+}
+```
+
+```java
+// Rodzina produktów dla kanału EMAIL
+class EmailPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[EMAIL] Wysyłam: " + wiadomosc);
+    }
+}
+
+class EmailFormatter implements FormatterWiadomosci {
+    @Override
+    public String formatuj(String tytul, String tresc) {
+        return "Temat: " + tytul + "\n\n" + tresc + "\n\n---\nWysłano z QuickBite";
+    }
+}
+
+// Rodzina produktów dla kanału SMS
+class SmsPowiadomienie implements Powiadomienie {
+    @Override
+    public void wyslij(String wiadomosc) {
+        System.out.println("[SMS] Wysyłam: " + wiadomosc);
+    }
+}
+
+class SmsFormatter implements FormatterWiadomosci {
+    @Override
+    public String formatuj(String tytul, String tresc) {
+        return tytul.toUpperCase() + ": " + tresc;
+    }
+}
+```
+
+```java
+// Abstrakcyjna fabryka — definiuje kontrakt dla tworzenia całej rodziny
+// Każda implementacja tej fabryki gwarantuje spójny zestaw produktów
+interface KanalKomunikacjiFabryka {
+    Powiadomienie utworzPowiadomienie();
+    FormatterWiadomosci utworzFormatter();
+}
+```
+
+```java
+// Konkretna fabryka EMAIL — tworzy wyłącznie spójne obiekty email
+// Niemożliwe jest, by ta fabryka zwróciła SmsFormatter
+class EmailKanalFabryka implements KanalKomunikacjiFabryka {
+    @Override
+    public Powiadomienie utworzPowiadomienie() {
+        return new EmailPowiadomienie();
+    }
+
+    @Override
+    public FormatterWiadomosci utworzFormatter() {
+        return new EmailFormatter(); // zawsze spójny z EmailPowiadomienie
+    }
+}
+
+// Konkretna fabryka SMS — tworzy wyłącznie spójne obiekty SMS
+class SmsKanalFabryka implements KanalKomunikacjiFabryka {
+    @Override
+    public Powiadomienie utworzPowiadomienie() {
+        return new SmsPowiadomienie();
+    }
+
+    @Override
+    public FormatterWiadomosci utworzFormatter() {
+        return new SmsFormatter(); // zawsze spójny z SmsPowiadomienie
+    }
+}
+```
+
+```java
+// Serwis pracuje wyłącznie na abstrakcjach
+// Nie wie nic o Email ani SMS — zna tylko interfejsy i fabrykę
+class SerwisWiadomosci {
+
+    private final Powiadomienie powiadomienie;
+    private final FormatterWiadomosci formatter;
+
+    // Fabrykę wstrzykujemy z zewnątrz — decyzja o kanale należy do wywołującego
+    public SerwisWiadomosci(KanalKomunikacjiFabryka fabryka) {
+        // Spójność gwarantowana przez strukturę — obie metody pochodzą z tej samej fabryki
+        this.powiadomienie = fabryka.utworzPowiadomienie();
+        this.formatter = fabryka.utworzFormatter();
+    }
+
+    public void wyslijPowiadomienie(String tytul, String tresc) {
+        // Zero if-else, zero new XxxKlasa() — czysta logika biznesowa
+        String sformatowana = formatter.formatuj(tytul, tresc);
+        powiadomienie.wyslij(sformatowana);
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Wybieramy fabrykę — tylko tutaj decydujemy o kanale
+        SerwisWiadomosci serwisEmail = new SerwisWiadomosci(new EmailKanalFabryka());
+        serwisEmail.wyslijPowiadomienie("Zamówienie #123", "Twoje zamówienie zostało przyjęte.");
+
+        // Podmiana na SMS — SerwisWiadomosci nie zmienił ani jednej linii
+        SerwisWiadomosci serwisSms = new SerwisWiadomosci(new SmsKanalFabryka());
+        serwisSms.wyslijPowiadomienie("Zamówienie #123", "Twoje zamówienie zostało przyjęte.");
+
+        // Dodanie kanału PUSH? Tworzymy PushKanalFabryka — zero zmian w SerwisWiadomosci
+    }
+}
+```
+
+---
+
+## 5. Diagram
+
+```
+  «interface»
+  KanalKomunikacjiFabryka
+  ┌─────────────────────────────────┐
+  │ + utworzPowiadomienie()         │
+  │ + utworzFormatter()             │
+  └────────────┬────────────────────┘
+               │ implementują
+    ┌──────────┴──────────┐
+    ▼                     ▼
+  EmailKanalFabryka    SmsKanalFabryka
+  ┌──────────────────┐  ┌──────────────────┐
+  │ EmailPowiad. ◄───┤  │ SmsPowiad.   ◄───┤
+  │ EmailFormatter   │  │ SmsFormatter     │
+  └──────────────────┘  └──────────────────┘
+    spójna rodzina          spójna rodzina
+    produktów email         produktów SMS
+
+                 SerwisWiadomosci
+                 ┌───────────────────────────────┐
+                 │ - powiadomienie: Powiadomienie│
+                 │ - formatter: Formatter        │
+                 │                               │
+                 │ SerwisWiadomosci(fabryka)     │
+                 │ wyslijPowiadomienie(...)      │
+                 └───────────────────────────────┘
+                          │ zna tylko
+                          ▼
+                 «interface»              «interface»
+                 Powiadomienie            FormatterWiadomosci
+                 ┌────────────┐           ┌───────────────┐
+                 │ + wyslij() │           │ + formatuj()  │
+                 └────────────┘           └───────────────┘
+
+  Spójność zagwarantowana strukturą — fabryka nigdy nie zwróci
+  EmailPowiadomienie razem z SmsFormatterem.
+```
+
+---
+
+## 6. Factory Method vs Abstract Factory — podsumowanie różnic
+
+```
+┌──────────────────────┬──────────────────────────┬──────────────────────────────┐
+│                      │     Factory Method       │      Abstract Factory        │
+├──────────────────────┼──────────────────────────┼──────────────────────────────┤
+│ Co tworzy?           │ Jeden obiekt             │ Rodzinę powiązanych obiektów │
+│ Jak wygląda?         │ Statyczna metoda/klasa   │ Interfejs z wieloma metodami │
+│ Spójność produktów?  │ Nie gwarantuje           │ Gwarantuje strukturalnie     │
+│ Gdzie decyzja?       │ W metodzie fabrykującej  │ W konkretnej klasie fabryki  │
+│ Kiedy używać?        │ Jeden typ obiektów       │ Zestawy współpracujących     │
+│                      │ z wieloma wariantami     │ obiektów (rodziny)           │
+└──────────────────────┴──────────────────────────┴──────────────────────────────┘
+```
+
+---
+
+## 7. Dlaczego Abstract Factory jest ważny?
+
+**Gwarancja spójności rodziny** — to główna przewaga nad Factory Method. Struktura kodu uniemożliwia sparowanie obiektów z
+różnych rodzin. Kompilator staje się strażnikiem spójności.
+
+**Izolacja od konkretnych klas** — `SerwisWiadomosci` nie importuje ani `EmailPowiadomienie`, ani `SmsFormatter`. Zna tylko interfejsy.
+To maksymalna izolacja osiągalna w Javie bez frameworka.
+
+**Łatwa podmiana całej rodziny** — zmiana kanału to podmiana jednego obiektu fabryki w jednym miejscu. Cała reszta kodu pozostaje niezmieniona.
+
+**Wpływ na architekturę** — Abstract Factory to jeden z filarów wzorca **Dependency Injection**. Spring realizuje dokładnie tę ideę:
+wstrzykuje fabryki (kontekst aplikacji) zamiast konkretnych klas.
+
+---
+
+## 8. Kiedy stosować?
+
+**Abstract Factory ma sens, gdy:**
+
+- obiekty są **ściśle powiązane** i muszą być używane razem (formatter + powiadomienie, przycisk + okno dialogowe + pasek przewijania),
+- chcesz umożliwić **podmianę całej rodziny** obiektów bez modyfikacji kodu klienckiego,
+- system musi być **niezależny od sposobu tworzenia** produktów — i chcesz to zagwarantować strukturą, nie komentarzem w kodzie,
+- piszesz **bibliotekę lub framework**, który musi działać z różnymi implementacjami komponentów.
+
+**Abstract Factory w popularnych frameworkach:**
+
+- **Spring `ApplicationContext`** — cały kontener IoC to Abstract Factory: na podstawie konfiguracji tworzy i zarządza całymi rodzinami beanów,
+- **Java AWT/Swing `Toolkit`** — `Toolkit.getDefaultToolkit()` zwraca fabrykę tworzącą spójny zestaw komponentów UI dla bieżącego systemu operacyjnego,
+- **JAXP `DocumentBuilderFactory` + `TransformerFactory`** — rodzina fabryk do pracy z XML,
+- **Hibernate `SessionFactory`** — fabryka tworząca spójne sesje i transakcje dla konkretnego dialektu bazy danych.
+
+**Sygnały, że czas wprowadzić Abstract Factory:**
+
+- masz już Factory Method, ale zauważasz, że **produkty muszą być ze sobą spójne** i nic tego nie pilnuje,
+- podmiana jednego elementu systemu (np. kanału komunikacji) wymaga **skoordynowanej zmiany kilku klas jednocześnie**,
+- piszesz kod obsługujący **wiele środowisk** (dev/staging/prod, Windows/macOS/Linux) z różnymi implementacjami tych samych abstrakcji.
+
+---
+
+```
+Factory Method   → "Jaką klasę stworzyć?"     — jedna decyzja, jedna metoda
+Abstract Factory → "Jaką rodzinę stworzyć?"   — zestaw spójnych decyzji, jeden obiekt fabryki
+```
