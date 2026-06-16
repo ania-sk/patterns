@@ -17,6 +17,7 @@ export default function Navbar() {
     open: openQuiz,
     slug,
     content,
+    type,
   } = useQuiz();
 
   useEffect(() => {
@@ -55,21 +56,21 @@ export default function Navbar() {
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* Przycisk powrotu do quizu — widoczny tylko gdy quiz aktywny i drawer zamknięty */}
           {showReturnButton && (
-     <button
-    onClick={() => openQuiz(slug, content)}
-    className="flex items-center justify-center gap-2 rounded border border-border text-text-muted transition-colors hover:border-accent hover:bg-accent-bg hover:text-accent cursor-pointer
+            <button
+              onClick={() => openQuiz(slug, content, type)}
+              className="flex items-center justify-center gap-2 rounded border border-border text-text-muted transition-colors hover:border-accent hover:bg-accent-bg hover:text-accent cursor-pointer
       h-8 w-8
       sm:w-auto sm:px-3 sm:py-1.5"
-    aria-label="Powróć do aktywnego quizu"
-  >
-    <span
-      className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent"
-      aria-hidden="true"
-    />
-    <span className="hidden sm:inline font-mono text-xs">
-      Powrót do quizu
-    </span>
-  </button>
+              aria-label="Powróć do aktywnego quizu"
+            >
+              <span
+                className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent"
+                aria-hidden="true"
+              />
+              <span className="hidden sm:inline font-mono text-xs">
+                Powrót do quizu
+              </span>
+            </button>
           )}
 
           {/* Dark mode toggle */}
