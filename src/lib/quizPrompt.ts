@@ -51,3 +51,57 @@ Odpowiedz WYŁĄCZNIE w formacie JSON, bez żadnego tekstu przed ani po:
 }
 `.trim();
 }
+
+export function buildPatternQuizPrompt(slug: string, content: string): string {
+  return `
+Jesteś ekspertem od wzorców projektowych GoF (Gang of Four).
+Na podstawie poniższych notatek o wzorcu "${slug}" wygeneruj dokładnie 4 pytania quizowe.
+
+NOTATKI:
+${content}
+
+WYMAGANIA:
+- Pytanie 1: o definicję wzorca — co robi i do jakiej grupy należy
+- Pytanie 2: o rozpoznanie problemu, który wzorzec rozwiązuje — MUSI zawierać krótki przykład kodu Java (max 8 linii) w polu "code" pokazujący kod BEZ wzorca (antywzorzec)
+- Pytanie 3: o poprawną strukturę lub implementację wzorca
+- Pytanie 4: o pułapki, ograniczenia lub kiedy wzorca NIE stosować
+- Pole "code" musi być pojedynczym stringiem JSON z escapowanymi znakami: nowe linie jako \\n, tabulatory jako \\t, cudzysłowy jako \\" itd.
+
+Każde pytanie musi mieć:
+- 3 opcje odpowiedzi (A, B, C)
+- dokładnie jedną poprawną odpowiedź
+- krótkie wyjaśnienie (max 2 zdania) dlaczego odpowiedź jest poprawna
+
+Odpowiedz WYŁĄCZNIE w formacie JSON, bez żadnego tekstu przed ani po:
+{
+  "questions": [
+    {
+      "id": 1,
+      "type": "definition",
+      "question": "treść pytania",
+      "code": null,
+      "options": [
+        { "key": "A", "text": "treść opcji A" },
+        { "key": "B", "text": "treść opcji B" },
+        { "key": "C", "text": "treść opcji C" }
+      ],
+      "correct": "A",
+      "explanation": "wyjaśnienie"
+    },
+    {
+      "id": 2,
+      "type": "code",
+      "question": "treść pytania",
+      "code": "class Example {\n  void method() {}\n}",
+      "options": [
+        { "key": "A", "text": "treść opcji A" },
+        { "key": "B", "text": "treść opcji B" },
+        { "key": "C", "text": "treść opcji C" }
+      ],
+      "correct": "A",
+      "explanation": "wyjaśnienie"
+    }
+  ]
+}
+`.trim();
+}

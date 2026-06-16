@@ -15,6 +15,7 @@ interface QuizDrawerProps {
   onClose: () => void;
   slug: string;
   content: string;
+  type: "solid" | "pattern";
 }
 // ─── Helpery ─────────────────────────────────────────────────────────────────
 type DrawerState = "idle" | "loading" | "ready" | "error";
@@ -41,6 +42,7 @@ export default function QuizDrawer({
   onClose,
   slug,
   content,
+  type,
 }: QuizDrawerProps) {
   const [state, setState] = useState<DrawerState>("idle");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -63,7 +65,7 @@ export default function QuizDrawer({
         const res = await fetch("/api/quiz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug, content }),
+          body: JSON.stringify({ slug, content, type }),
         });
 
         if (!res.ok) throw new Error("API error");

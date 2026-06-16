@@ -1,13 +1,8 @@
-// app/patterns/[category]/[slug]/page.tsx
 // Dynamiczna strona pojedynczego wzorca projektowego.
 // Ładuje plik MDX z content/patterns/[category]/[slug].mdx
-
 import { notFound } from "next/navigation";
-import {
-  getPattern,
-  getAdjacentPatterns,
-  getCategorySlug,
-} from "@/lib/principles";
+import { getPattern, getAdjacentPatterns } from "@/lib/principles";
+import PatternPageClient from "@/components/PatternPageClient";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
@@ -17,8 +12,6 @@ import path from "path";
 interface PageProps {
   params: Promise<{ category: string; slug: string }>;
 }
-
-// ─── Surowa treść MDX dla quizu ──────────────────────────────────────────────
 
 function getMdxRawContent(category: string, slug: string): string {
   try {
@@ -33,8 +26,6 @@ function getMdxRawContent(category: string, slug: string): string {
     return "";
   }
 }
-
-// ─── Statyczne parametry dla buildu ──────────────────────────────────────────
 
 export function generateStaticParams() {
   return [
@@ -54,8 +45,6 @@ export function generateStaticParams() {
   ];
 }
 
-// ─── Metadata ────────────────────────────────────────────────────────────────
-
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
@@ -70,8 +59,6 @@ export async function generateMetadata({
   };
 }
 
-// ─── Dynamiczny import MDX ────────────────────────────────────────────────────
-
 async function getMdxContent(category: string, slug: string) {
   try {
     const { default: Content } = await import(
@@ -83,15 +70,13 @@ async function getMdxContent(category: string, slug: string) {
   }
 }
 
-// ─── Strona ───────────────────────────────────────────────────────────────────
-
 export default async function PatternPage({ params }: PageProps) {
   const { category, slug } = await params;
   const result = getPattern(category, slug);
 
   if (!result) notFound();
 
-  const { pattern } = result;
+  const { pattern, group } = result;
 
   if (pattern.status === "todo") notFound();
 
@@ -101,26 +86,16 @@ export default async function PatternPage({ params }: PageProps) {
 
   return (
     <>
-      {/* Hero */}
-      <div className="mb-10 border-b border-border pb-8">
-        <h1 className="mb-1 font-mono text-xl font-bold leading-tight tracking-tight text-text-primary sm:text-2xl">
-          {pattern.name}
-        </h1>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-text-faint">
-          {result.group.label}
-        </p>
-      </div>
+      <PatternPageClient pattern={pattern} group={group} content={content}>
+        {MdxContent ? (
+          <article className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
+            <MdxContent />
+          </article>
+        ) : (
+          <EmptyState category={category} slug={slug} />
+        )}
+      </PatternPageClient>
 
-      {/* Treść MDX */}
-      {MdxContent ? (
-        <article className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
-          <MdxContent />
-        </article>
-      ) : (
-        <EmptyState category={category} slug={slug} />
-      )}
-
-      {/* Nawigacja prev/next */}
       <nav
         className="mt-12 flex items-center justify-between border-t border-border pt-6"
         aria-label="Poprzedni i następny wzorzec"
@@ -168,8 +143,6 @@ export default async function PatternPage({ params }: PageProps) {
     </>
   );
 }
-
-// ─── Placeholder gdy brak pliku MDX ──────────────────────────────────────────
 
 function EmptyState({ category, slug }: { category: string; slug: string }) {
   return (

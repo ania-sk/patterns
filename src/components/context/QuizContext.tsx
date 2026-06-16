@@ -6,7 +6,8 @@ interface QuizContextValue {
   isOpen: boolean;
   isActive: boolean;
   slug: string;
-  open: (slug: string, content: string) => void;
+  type: "solid" | "pattern";
+  open: (slug: string, content: string, type: "solid" | "pattern") => void;
   close: () => void;
   dismiss: () => void; // zamknij i dezaktywuj — koniec quizu
   content: string;
@@ -19,13 +20,18 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false);
   const [slug, setSlug] = useState("");
   const [content, setContent] = useState("");
+  const [type, setType] = useState<"solid" | "pattern">("pattern");
 
-  const open = useCallback((newSlug: string, newContent: string) => {
-    setSlug(newSlug);
-    setContent(newContent);
-    setIsActive(true);
-    setIsOpen(true);
-  }, []);
+  const open = useCallback(
+    (newSlug: string, newContent: string, newType: "solid" | "pattern") => {
+      setSlug(newSlug);
+      setContent(newContent);
+      setType(newType);
+      setIsActive(true);
+      setIsOpen(true);
+    },
+    [],
+  );
 
   // Zamknij drawer, ale zostaw isActive — przycisk "Powrót do quizu" zostaje
   const close = useCallback(() => setIsOpen(false), []);
@@ -40,7 +46,7 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <QuizContext.Provider
-      value={{ isOpen, isActive, slug, content, open, close, dismiss }}
+      value={{ isOpen, isActive, slug, content, type, open, close, dismiss }}
     >
       {children}
     </QuizContext.Provider>

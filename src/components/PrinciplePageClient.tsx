@@ -25,7 +25,7 @@ export default function PrinciplePageClient({
     <>
       <PrincipleHero
         principle={principle}
-        onQuizOpen={() => open(principle.slug, content)}
+        onQuizOpen={() => open(principle.slug, content, "solid")}
       />
 
       {children}
@@ -35,6 +35,7 @@ export default function PrinciplePageClient({
         onClose={close}
         slug={principle.slug}
         content={content}
+        type="solid"
       />
     </>
   );

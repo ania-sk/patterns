@@ -136,8 +136,9 @@ export function getPattern(
   category: string,
   slug: string,
 ): { pattern: Pattern; group: PatternGroup } | undefined {
-  const group = patternGroups.find((g) =>
-    g.patterns.some((p) => p.slug === slug),
+  const group = patternGroups.find(
+    (g) =>
+      g.categorySlug === category && g.patterns.some((p) => p.slug === slug),
   );
   if (!group) return undefined;
   const pattern = group.patterns.find((p) => p.slug === slug);

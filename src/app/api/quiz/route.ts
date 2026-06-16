@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildQuizPrompt } from "@/lib/quizPrompt";
+import { buildPatternQuizPrompt } from "@/lib/quizPrompt";
 
 // Tasuje opcje pytania i aktualizuje pole correct
 function shuffleOptions(
@@ -29,7 +30,7 @@ function shuffleOptions(
 
 export async function POST(req: NextRequest) {
   try {
-    const { slug, content } = await req.json();
+    const { slug, content, type } = await req.json();
 
     if (!slug || !content) {
       return NextResponse.json(
@@ -38,7 +39,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = buildQuizPrompt(slug, content);
+    const prompt =
+      type === "pattern"
+        ? buildPatternQuizPrompt(slug, content)
+        : buildQuizPrompt(slug, content);
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
