@@ -74,11 +74,11 @@ export const patternGroups: PatternGroup[] = [
     patterns: [
       { slug: "singleton", name: "Singleton", status: "done" },
       { slug: "builder", name: "Builder", status: "done" },
-      { slug: "factory-method", name: "Factory Method", status: "in-progress" },
+      { slug: "factory-method", name: "Factory Method", status: "done" },
       {
         slug: "abstract-factory",
         name: "Abstract Factory",
-        status: "in-progress",
+        status: "done",
       },
       { slug: "prototype", name: "Prototype", status: "todo" },
     ],
@@ -87,8 +87,9 @@ export const patternGroups: PatternGroup[] = [
     label: "Wzorce strukturalne",
     categorySlug: "structural",
     patterns: [
-      { slug: "adapter", name: "Adapter", status: "todo" },
-      { slug: "decorator", name: "Decorator", status: "todo" },
+      { slug: "flyweight", name: "Flyweight", status: "in-progress" },
+      { slug: "adapter", name: "Adapter", status: "in-progress" },
+      { slug: "decorator", name: "Decorator", status: "in-progress" },
       { slug: "facade", name: "Facade", status: "todo" },
       { slug: "proxy", name: "Proxy", status: "todo" },
     ],

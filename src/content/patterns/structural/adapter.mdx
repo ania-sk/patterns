@@ -1,0 +1,343 @@
+## 1. Definicja
+
+**Adapter** to strukturalny wzorzec projektowy, który umożliwia współpracę obiektów o **niekompatybilnych interfejsach** — opakowując jeden z nich w klasę pośredniczącą, która "tłumaczy" wywołania z jednego interfejsu na drugi.
+
+> Convert the interface of a class into another interface clients expect. Adapter lets classes work together that couldn't otherwise because of incompatible interfaces.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **Adapter to tłumacz między dwoma klasami, które mówią różnymi językami.**
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że przyjeżdżamy z laptopem do Wielkiej Brytanii.
+
+Nasz laptop ma wtyczkę z dwoma okrągłymi bolcami — standard europejski. Gniazdka w brytyjskich hotelach mają trzy prostokątne otwory
+— standard UK. Laptop jest sprawny. Gniazdko jest sprawne. Problem? Interfejsy są niekompatybilne.
+
+Rozwiązanie nie polega na wymianie laptopa ani na kuciu ścian, żeby zamontować europejskie gniazdko. Kupujemy **adapter podróżny**
+— małe urządzenie, które z jednej strony pasuje do gniazdka UK, z drugiej przyjmuje europejską wtyczkę. Żadna ze stron nie wie,
+że adapter w ogóle istnieje. Laptop myśli, że jest podłączony do europejskiego gniazdka. Gniazdko myśli, że ma do czynienia
+ze standardową brytyjską wtyczką.
+
+To jest wzorzec Adapter w czystej postaci.
+
+W programowaniu taka sytuacja zdarza się nagminnie:
+
+- integrujemy **zewnętrzną bibliotekę**, której interfejs nie pasuje do naszego systemu,
+- używamy **starego kodu** (_legacy_), który nie możemy zmodyfikować, ale chcemy z niego korzystać,
+- łączymy **dwa niezależne systemy**, które zostały zaprojektowane bez wiedzy o sobie nawzajem.
+
+Ćwiczenie myślowe: wyobraźmy sobie, że nasz system płatności działa z interfejsem `Platnosc` z metodą `zaplac()`.
+Nagle musimy zintegrować zewnętrzny procesor płatności — Stripe — który ma własne API z metodą `charge()`.
+Nie możemy zmienić Stripe'a. Nie chcemy zmieniać naszego systemu. Potrzebujemy tłumacza — Adaptera.
+
+---
+
+## 3. Przykład — bez Adaptera
+
+Tworzymy system e-commerce. Początkowo wysyłaliśmy powiadomienia e-mail przez własną klasę. Teraz chcemy zintegrować zewnętrzny serwis SMS — `SendSmsService` — który ma zupełnie inne API niż to, czego oczekuje nasz system.
+
+```java
+// Interfejs, którego oczekuje nasz system — zdefiniowany przez nas
+interface SerwisWiadomosci {
+    void wyslijWiadomosc(String odbiorca, String tresc);
+}
+```
+
+```java
+// Nasza własna implementacja — działa poprawnie
+class EmailSerwis implements SerwisWiadomosci {
+    @Override
+    public void wyslijWiadomosc(String odbiorca, String tresc) {
+        System.out.println("Wysyłam e-mail do: " + odbiorca + " | Treść: " + tresc);
+    }
+}
+```
+
+```java
+// Zewnętrzna biblioteka SMS — nie możemy jej modyfikować
+// Ma własne API, zupełnie inne niż nasz SerwisWiadomosci
+class SendSmsService {
+    // Inna nazwa metody, inne parametry, inny porządek argumentów
+    public void send(String phoneNumber, String message, String sender) {
+        System.out.println("Wysyłam SMS na: " + phoneNumber
+                + " od: " + sender + " | " + message);
+    }
+}
+```
+
+```java
+class OrderService {
+
+    private SerwisWiadomosci serwisWiadomosci;
+
+    public OrderService(SerwisWiadomosci serwisWiadomosci) {
+        this.serwisWiadomosci = serwisWiadomosci;
+    }
+
+    public void zlozZamowienie(String klient, String produkt) {
+        System.out.println("Składam zamówienie: " + produkt);
+        // OrderService oczekuje SerwisWiadomosci — nie wie nic o SendSmsService
+        serwisWiadomosci.wyslijWiadomosc(klient, "Zamówiono: " + produkt);
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // To działa — EmailSerwis implementuje SerwisWiadomosci
+        OrderService serwis = new OrderService(new EmailSerwis());
+        serwis.zlozZamowienie("+48123456789", "Laptop");
+
+        // To NIE działa — SendSmsService nie implementuje SerwisWiadomosci
+        // Kompilator zgłosi błąd: SendSmsService cannot be converted to SerwisWiadomosci
+        // OrderService serwis2 = new OrderService(new SendSmsService()); // ← błąd!
+
+        // Jedyne "rozwiązanie" bez Adaptera — zabrudzenie kodu OrderService:
+        SendSmsService smsService = new SendSmsService();
+        // Musimy obsłużyć SMS osobno, poza standardowym przepływem
+        // Kod staje się niespójny — raz wyslijWiadomosc(), raz send()
+        smsService.send("+48123456789", "Zamówiono: Laptop", "QuickBite");
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+`SendSmsService` istnieje i działa, ale nie możemy go podłączyć tam, gdzie nasz system oczekuje `SerwisWiadomosci`.
+Możemy albo zrezygnować z zewnętrznej biblioteki, albo zaśmiecić kod `OrderService` z wiedzą o dwóch różnych API.
+Oba wyjścia są złe.
+
+**Konkretne konsekwencje:**
+
+- **złamanie OCP** — chcąc dodać SMS, musimy modyfikować `OrderService`,
+- **duplikacja logiki** — obsługa SMS rozchodzi się po całym kodzie zamiast być w jednym miejscu,
+- **silne powiązanie** — `OrderService` musi znać szczegóły API zewnętrznej biblioteki,
+- **niemożność testowania** — nie możemy podmienić `SendSmsService` na mock przez wspólny interfejs.
+
+---
+
+## 4. Przykład — zgodny z wzorcem Adapter
+
+Podejdźmy do tego lepiej. Tworzymy klasę pośredniczącą, która implementuje nasz interfejs i w środku deleguje wywołania do zewnętrznej biblioteki.
+
+```java
+// Interfejs i klasy istniejące — bez zmian
+interface SerwisWiadomosci {
+    void wyslijWiadomosc(String odbiorca, String tresc);
+}
+
+class EmailSerwis implements SerwisWiadomosci {
+    @Override
+    public void wyslijWiadomosc(String odbiorca, String tresc) {
+        System.out.println("Wysyłam e-mail do: " + odbiorca + " | Treść: " + tresc);
+    }
+}
+
+// Zewnętrzna biblioteka — również bez zmian
+class SendSmsService {
+    public void send(String phoneNumber, String message, String sender) {
+        System.out.println("Wysyłam SMS na: " + phoneNumber
+                + " od: " + sender + " | " + message);
+    }
+}
+```
+
+```java
+// ADAPTER — tłumacz między naszym interfejsem a zewnętrzną biblioteką
+// Od zewnątrz wygląda jak SerwisWiadomosci — nasz system go rozumie
+// W środku używa SendSmsService — biblioteka jest zadowolona
+class SmsAdapter implements SerwisWiadomosci {
+
+    // Referencja do adaptowanego obiektu — "opakowana" biblioteka
+    private final SendSmsService sendSmsService;
+    private final String nadawca;
+
+    public SmsAdapter(SendSmsService sendSmsService, String nadawca) {
+        this.sendSmsService = sendSmsService;
+        this.nadawca = nadawca;
+    }
+
+    // Implementujemy interfejs, którego oczekuje nasz system...
+    @Override
+    public void wyslijWiadomosc(String odbiorca, String tresc) {
+        // ...i w środku tłumaczymy wywołanie na API zewnętrznej biblioteki
+        // Adapter zna oba "języki" — to jego jedyna odpowiedzialność
+        sendSmsService.send(odbiorca, tresc, nadawca);
+    }
+}
+```
+
+```java
+class OrderService {
+
+    private final SerwisWiadomosci serwisWiadomosci;
+
+    public OrderService(SerwisWiadomosci serwisWiadomosci) {
+        this.serwisWiadomosci = serwisWiadomosci;
+    }
+
+    public void zlozZamowienie(String klient, String produkt) {
+        System.out.println("Składam zamówienie: " + produkt);
+        // OrderService nie zmienił się ani trochę — nadal zna tylko SerwisWiadomosci
+        serwisWiadomosci.wyslijWiadomosc(klient, "Zamówiono: " + produkt);
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Wersja z e-mailem — bez zmian
+        OrderService serwisEmail = new OrderService(new EmailSerwis());
+        serwisEmail.zlozZamowienie("jan@przykład.pl", "Laptop");
+
+        // Wersja z SMS — przez Adapter
+        // OrderService nie wie, że pod spodem działa SendSmsService
+        SendSmsService sendSmsService = new SendSmsService();
+        SerwisWiadomosci smsAdapter = new SmsAdapter(sendSmsService, "QuickBite");
+
+        OrderService serwisSms = new OrderService(smsAdapter);
+        serwisSms.zlozZamowienie("+48123456789", "Mysz");
+
+        // Chcemy dodać trzeci kanał — Slack, WhatsApp, push?
+        // Tworzymy kolejny Adapter — OrderService pozostaje niezmieniony
+    }
+}
+```
+
+**Co zyskujemy?**
+
+`OrderService` nie wie i nie musi wiedzieć, że za `SerwisWiadomosci` kryje się zewnętrzna biblioteka SMS. Dodanie kolejnego kanału komunikacji to stworzenie nowego Adaptera — bez dotykania jakiejkolwiek istniejącej klasy. Zewnętrzna biblioteka pozostaje nienaruszona.
+
+---
+
+## 5. Dwa warianty Adaptera
+
+GoF opisuje dwa sposoby implementacji wzorca. W Javie praktycznie zawsze stosujemy pierwszy.
+
+### Adapter obiektowy (przez kompozycję) — rekomendowany
+
+To wersja z powyższego przykładu. Adapter **trzyma referencję** do adaptowanego obiektu i deleguje wywołania.
+
+```
+  ┌─────────────────┐     implementuje    ┌──────────────────┐
+  │  OrderService   │────────────────────►│ SerwisWiadomosci │
+  └─────────────────┘                     └────────┬─────────┘
+                                                   │ implementuje
+                                          ┌────────▼─────────┐
+                                          │   SmsAdapter     │
+                                          │ ───────────────  │
+                                          │ - smsService     │◄── kompozycja
+                                          │ + wyslijWiad...  │
+                                          └────────┬─────────┘
+                                                   │ używa
+                                          ┌────────▼─────────┐
+                                          │  SendSmsService  │
+                                          │(zewn. biblioteka)│
+                                          └──────────────────┘
+```
+
+### Adapter klasowy (przez dziedziczenie) — rzadziej używany
+
+Adapter **dziedziczy** po klasie adaptowanej i implementuje docelowy interfejs. W Javie wymaga wielokrotnego dziedziczenia przez interfejsy — możliwe, ale mniej elastyczne niż kompozycja.
+
+```java
+// Adapter klasowy — dziedziczy po adaptowanej klasie
+class SmsAdapterKlasowy extends SendSmsService implements SerwisWiadomosci {
+
+    private final String nadawca;
+
+    public SmsAdapterKlasowy(String nadawca) {
+        this.nadawca = nadawca;
+    }
+
+    @Override
+    public void wyslijWiadomosc(String odbiorca, String tresc) {
+        // Wywołujemy metodę odziedziczoną z SendSmsService
+        this.send(odbiorca, tresc, nadawca);
+    }
+}
+```
+
+W praktyce **preferuj adapter obiektowy** (kompozycja) — jest bardziej elastyczny, łatwiejszy do testowania i nie uzależnia się od hierarchii dziedziczenia.
+
+---
+
+## 6. Diagram — pełna struktura wzorca
+
+```
+  KLIENT                 INTERFEJS DOCELOWY        ADAPTOWANY
+  ─────────────────────────────────────────────────────────────
+
+  OrderService           SerwisWiadomosci
+  ┌──────────────┐       ┌───────────────────┐
+  │              │──────►│ + wyslijWiadomosc │
+  │ zlozZamow.() │       └─────────┬─────────┘
+  └──────────────┘                 │ implementuje
+                          ┌────────┴──────────┐
+                          │    EmailSerwis    │   ← istniejąca implementacja
+                          └───────────────────┘
+
+                          ┌────────────────────┐
+                          │    SmsAdapter      │   ← ADAPTER
+                          │ ────────────────── │
+                          │ - sendSmsService   │──┐ kompozycja
+                          │ + wyslijWiadomosc()│  │
+                          └────────────────────┘  │
+                                                  ▼
+                                    ┌─────────────────────┐
+                                    │   SendSmsService    │   ← zewnętrzna
+                                    │ ─────────────────── │     biblioteka
+                                    │ + send(nr, msg, od) │
+                                    └─────────────────────┘
+```
+
+---
+
+## 7. Dlaczego Adapter jest ważny?
+
+**Integracja bez modyfikacji** — możemy podłączyć zewnętrzną bibliotekę, stary kod lub system trzeci bez dotykania ani jednej linii istniejącego kodu. To kwintesencja zasady OCP.
+
+**Izolacja zależności** — szczegóły API zewnętrznej biblioteki są zamknięte w jednej klasie Adaptera. Jeśli biblioteka zmieni API w nowej wersji — aktualizujemy tylko Adapter, nie całą aplikację.
+
+**Testowalność** — ponieważ Adapter implementuje znany nam interfejs, możemy go zastąpić mockiem w testach jednostkowych tak samo jak każdą inną implementację.
+
+**Współpraca z legacy code** — w rzeczywistych projektach często pracujemy z kodem, którego nie możemy lub nie chcemy modyfikować. Adapter to elegancka ścieżka integracji bez ryzyka destabilizacji starego systemu.
+
+---
+
+## 8. Kiedy stosować?
+
+**Adapter ma sens, gdy:**
+
+- chcesz użyć **zewnętrznej biblioteki**, której interfejs nie pasuje do Twojego systemu,
+- musisz zintegrować **stary kod** (_legacy_), który nie może być zmodyfikowany,
+- budujesz system, który ma **współpracować z wieloma dostawcami** tego samego typu usługi (płatności, wysyłka SMS, logowanie),
+- chcesz **odizolować** resztę aplikacji od szczegółów konkretnej implementacji zewnętrznej.
+
+**Adapter w popularnych frameworkach Javy:**
+
+- **Spring `HandlerAdapter`** — Spring MVC używa Adapterów, by móc obsługiwać różne typy kontrolerów (`@Controller`, `HttpRequestHandler`, `Servlet`) przez ten sam mechanizm dispatchera,
+- **`Arrays.asList()` i `Collections.unmodifiableList()`** — opakowują tablicę lub kolekcję w inny interfejs,
+- **`InputStreamReader`** — adapter między `InputStream` (strumień bajtów) a `Reader` (strumień znaków); tłumaczy bajty na znaki zgodnie z zadanym kodowaniem,
+- **JDBC `ResultSetIterator`** — różne biblioteki opakowują `ResultSet` w `Iterator`, by móc iterować po wynikach zapytania w standardowy sposób.
+
+**Sygnały, że czas wprowadzić Adapter:**
+
+- masz klasę, która robi dokładnie to czego potrzebujesz, ale ma **inną nazwę metody lub inne parametry**,
+- chcesz podmienić jedną bibliotekę na inną, ale **obydwie mają inne API**,
+- dodanie nowej integracji wymaga modyfikacji klas, które **powinny o niej nie wiedzieć**,
+- w code review pojawia się pytanie: _"dlaczego OrderService zna szczegóły API Stripe'a?"_
+
+---
+
+```
+BEZ ADAPTERA: klient musi znać API zewnętrznej biblioteki → silne powiązanie
+Z ADAPTEREM: klient zna tylko swój interfejs → biblioteka zamknięta w jednej klasie
+```

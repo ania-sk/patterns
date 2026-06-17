@@ -1,0 +1,369 @@
+## 1. Definicja
+
+**Dekorator** to strukturalny wzorzec projektowy, który pozwala **dynamicznie dodawać nowe zachowania do obiektów** przez opakowywanie ich w specjalne klasy-opakowania, które implementują ten sam interfejs co opakowywany obiekt.
+
+> Attach additional responsibilities to an object dynamically. Decorators provide a flexible alternative to subclassing for extending functionality.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **zamiast dziedziczyć, żeby dodać nowe zachowanie — owiń obiekt w kolejną warstwę.**
+
+Kluczowe słowo w definicji to **dynamicznie** — w przeciwieństwie do dziedziczenia, które ustala zachowanie klasy na etapie kompilacji, Dekorator pozwala decydować o zachowaniu obiektu w trakcie działania programu.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie kawę w kawiarni.
+
+Zamawiamy espresso. Kelner pyta: _„Coś do tego?"_ Mówimy: mleko. Pyta dalej: _„Może syrop waniliowy?"_ Czemu nie. _„Bita śmietana na wierzch?"_ Tak, proszę.
+
+Dostajemy filiżankę, w której bazowe espresso zostało kolejno owinięte w mleko, potem w syrop waniliowy, potem w bitą śmietanę. Każda warstwa dodaje coś do smaku i do ceny. Możemy dowolnie komponować — espresso z mlekiem, espresso z syropem bez mleka, sama czarna kawa. To nie są cztery różne kawy z czterech różnych klas — to jeden obiekt bazowy z dynamicznie nałożonymi warstwami.
+
+Teraz wyobraźmy sobie alternatywę opartą na dziedziczeniu:
+
+```
+Kawa
+├── KawaZMlekiem
+├── KawaZSyropem
+├── KawaZBitaSmietana
+├── KawaZMlekiemISyropem
+├── KawaZMlekiemIBitaSmietana
+├── KawaZSyropemIBitaSmietana
+└── KawaZMlekiemISyropemIBitaSmietana
+```
+
+Przy trzech dodatkach mamy już siedem podklas. Przy pięciu dodatkach — trzydzieści jeden. To jest **eksplozja podklas** — klasyczny sygnał, że dziedziczenie nie jest właściwym narzędziem do tego problemu.
+
+Ćwiczenie myślowe: wyobraźmy sobie teraz system logowania w aplikacji. Mamy podstawowy logger, który zapisuje wiadomości do konsoli. Chcemy móc opcjonalnie:
+
+- dopisywać znacznik czasu do każdej wiadomości,
+- zapisywać logi równolegle do pliku,
+- filtrować logi poniżej określonego poziomu.
+
+Każda kombinacja tych opcji to osobna konfiguracja. Jeśli nie chcemy dziedziczenia, potrzebujemy Dekoratora.
+
+---
+
+## 3. Przykład — naruszenie (bez Dekoratora)
+
+Tworzymy system logowania. Początkowo logger zapisuje do konsoli. Potem pojawiają się nowe wymagania — logi z datą, logi do pliku, logi z obydwoma. Sięgamy po dziedziczenie.
+
+```java
+// Klasa bazowa
+class Logger {
+    public void log(String wiadomosc) {
+        System.out.println(wiadomosc);
+    }
+}
+```
+
+```java
+// Pierwsze wymaganie: logi ze znacznikiem czasu
+class LoggerZCzasem extends Logger {
+    @Override
+    public void log(String wiadomosc) {
+        System.out.println("[" + LocalDateTime.now() + "] " + wiadomosc);
+    }
+}
+
+// Drugie wymaganie: logi zapisywane do pliku
+class LoggerDoPliku extends Logger {
+    @Override
+    public void log(String wiadomosc) {
+        System.out.println(wiadomosc); // uproszczone
+        // zapis do pliku...
+    }
+}
+```
+
+```java
+// Trzecie wymaganie: czas ORAZ plik — musimy tworzyć kolejną podklasę
+// Każda nowa kombinacja = nowa klasa
+class LoggerZCzasemIDoPliku extends Logger {
+    @Override
+    public void log(String wiadomosc) {
+        String zCzasem = "[" + LocalDateTime.now() + "] " + wiadomosc;
+        System.out.println(zCzasem);
+        // zapis do pliku...
+        // Logika dodawania czasu zduplikowana z LoggerZCzasem!
+    }
+}
+
+// Czwarte wymaganie: filtrowanie poziomu logów + czas + plik?
+// Kolejna podklasa... i kolejna... i kolejna...
+// Przy 4 opcjach mamy potencjalnie 15 kombinacji = 15 klas
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Wybór zachowania jest sztywny — ustalony na etapie kompilacji
+        Logger logger = new LoggerZCzasemIDoPliku();
+        logger.log("Aplikacja uruchomiona");
+
+        // Chcemy zmienić konfigurację w trakcie działania? Niemożliwe.
+        // Chcemy dodać nową opcję? Mnożymy podklasy.
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Każda nowa opcja logowania wymaga nowych podklas dla wszystkich kombinacji z już istniejącymi opcjami. Logika jest duplikowana między klasami. Zachowanie jest ustalane w kodzie — nie można go zmienić w czasie działania programu.
+
+**Konkretne konsekwencje:**
+
+- **eksplozja podklas** — liczba klas rośnie wykładniczo wraz z liczbą opcji,
+- **duplikacja kodu** — logika dodawania znacznika czasu pojawia się w wielu klasach,
+- **brak elastyczności** — nie można zmienić zachowania loggera bez rekompilacji,
+- **naruszenie OCP** — dodanie nowej opcji wymaga modyfikacji lub tworzenia wielu klas.
+
+---
+
+## 4. Przykład — zgodny z wzorcem Dekorator
+
+Podejdźmy do tego lepiej. Zamiast tworzyć podklasy dla każdej kombinacji, będziemy owijać logger w kolejne warstwy — jak cebula albo jak warstwy kawy.
+
+```java
+// Wspólny interfejs — zarówno bazowy logger, jak i wszystkie dekoratory
+// muszą go implementować, by można je było ze sobą łączyć
+interface Logger {
+    void log(String wiadomosc);
+}
+```
+
+```java
+// Konkretna implementacja bazowa — robi jedną rzecz, bez żadnych ozdobników
+class KonsolaLogger implements Logger {
+    @Override
+    public void log(String wiadomosc) {
+        System.out.println(wiadomosc);
+    }
+}
+```
+
+```java
+// Abstrakcyjny dekorator — bazowa klasa dla wszystkich dekoratorów
+// Implementuje Logger i trzyma referencję do opakowanego Loggera
+// Dzięki temu każdy dekorator może owijać zarówno bazowy logger,
+// jak i inny dekorator — to umożliwia dowolne łączenie warstw
+abstract class LoggerDekorator implements Logger {
+
+    // Opakowany obiekt — może być KonsolaLogger lub inny dekorator
+    protected final Logger opakowany;
+
+    public LoggerDekorator(Logger opakowany) {
+        this.opakowany = opakowany;
+    }
+
+    // Domyślnie delegujemy wywołanie do opakowanego obiektu
+    @Override
+    public void log(String wiadomosc) {
+        opakowany.log(wiadomosc);
+    }
+}
+```
+
+```java
+// Dekorator dodający znacznik czasu — jedna odpowiedzialność, jedna klasa
+class CzasDekorator extends LoggerDekorator {
+
+    public CzasDekorator(Logger opakowany) {
+        super(opakowany);
+    }
+
+    @Override
+    public void log(String wiadomosc) {
+        // Dodajemy znacznik czasu DO wiadomości, a potem delegujemy dalej
+        String zCzasem = "[" + LocalDateTime.now() + "] " + wiadomosc;
+        opakowany.log(zCzasem);
+    }
+}
+```
+
+```java
+// Dekorator zapisujący do pliku — również jedna odpowiedzialność
+class PlikDekorator extends LoggerDekorator {
+
+    private final String sciezkaPliku;
+
+    public PlikDekorator(Logger opakowany, String sciezkaPliku) {
+        super(opakowany);
+        this.sciezkaPliku = sciezkaPliku;
+    }
+
+    @Override
+    public void log(String wiadomosc) {
+        // Najpierw delegujemy do opakowanego (np. konsola)
+        opakowany.log(wiadomosc);
+        // Potem dodajemy własne zachowanie — zapis do pliku
+        System.out.println("[PLIK: " + sciezkaPliku + "] " + wiadomosc);
+    }
+}
+```
+
+```java
+// Dekorator filtrujący poziom logów
+class PoziomDekorator extends LoggerDekorator {
+
+    public enum Poziom { DEBUG, INFO, WARN, ERROR }
+
+    private final Poziom minimalnyPoziom;
+    private final Poziom aktualnyPoziom;
+
+    public PoziomDekorator(Logger opakowany, Poziom minimalny, Poziom aktualny) {
+        super(opakowany);
+        this.minimalnyPoziom = minimalny;
+        this.aktualnyPoziom = aktualny;
+    }
+
+    @Override
+    public void log(String wiadomosc) {
+        // Przekazujemy dalej tylko gdy poziom jest wystarczająco wysoki
+        if (aktualnyPoziom.ordinal() >= minimalnyPoziom.ordinal()) {
+            opakowany.log("[" + aktualnyPoziom + "] " + wiadomosc);
+        }
+        // Wiadomości poniżej progu są po prostu ignorowane
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        // Wariant 1: prosty logger — tylko konsola
+        Logger prosty = new KonsolaLogger();
+        prosty.log("Start aplikacji");
+        // → Start aplikacji
+
+        // Wariant 2: konsola + znacznik czasu
+        Logger zCzasem = new CzasDekorator(new KonsolaLogger());
+        zCzasem.log("Zamówienie złożone");
+        // → [2024-01-15T10:30:00] Zamówienie złożone
+
+        // Wariant 3: konsola + czas + plik — owijamy kolejną warstwą
+        Logger pelny = new PlikDekorator(
+                           new CzasDekorator(
+                               new KonsolaLogger()),
+                           "app.log");
+        pelny.log("Płatność przetworzona");
+        // → [2024-01-15T10:30:01] Płatność przetworzona  (konsola)
+        // → [PLIK: app.log] [2024-01-15T10:30:01] Płatność przetworzona  (plik)
+
+        // Wariant 4: wszystkie warstwy razem
+        Logger maxymalny = new PoziomDekorator(
+                               new PlikDekorator(
+                                   new CzasDekorator(
+                                       new KonsolaLogger()),
+                                   "app.log"),
+                               PoziomDekorator.Poziom.WARN,
+                               PoziomDekorator.Poziom.ERROR);
+        maxymalny.log("Błąd krytyczny!");
+        // → [ERROR] [2024-01-15T10:30:02] Błąd krytyczny!  (konsola + plik)
+
+        // Nowa kombinacja w runtime — żadna klasa nie zmieniła się
+        // Dodanie nowej opcji = nowa klasa dekoratora, reszta nieruszona
+    }
+}
+```
+
+**Co zyskujemy?**
+
+Trzy klasy dekoratorów zastępują siedem podklas z poprzedniego przykładu — i obsługują wszystkie możliwe kombinacje. Każdy dekorator ma jedną odpowiedzialność. Konfigurację możemy zmieniać w czasie działania programu, składając warstwy według potrzeb.
+
+---
+
+## 5. Diagram — jak działają warstwy
+
+```
+  Wywołanie: pelny.log("Płatność przetworzona")
+  ─────────────────────────────────────────────────────────────────
+
+  PlikDekorator          CzasDekorator         KonsolaLogger
+  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+  │              │       │              │       │              │
+  │  log(msg)    │──────►│  log(msg)    │──────►│  log(msg)    │
+  │              │       │              │       │              │
+  │  + zapis     │       │  + dodaj     │       │  println()   │
+  │    do pliku  │◄──────│    czas      │◄──────│              │
+  │              │       │              │       │              │
+  └──────────────┘       └──────────────┘       └──────────────┘
+       warstwa 3              warstwa 2              rdzeń
+
+  Każda warstwa:
+  1. Opcjonalnie modyfikuje wiadomość (np. dodaje czas)
+  2. Deleguje do kolejnej warstwy
+  3. Opcjonalnie wykonuje własne działanie (np. zapis do pliku)
+
+  Struktura klas:
+  ┌──────────────────────────────────────────────┐
+  │              «interface» Logger              │
+  │              + log(wiadomosc)                │
+  └──────┬───────────────────────────────────────┘
+         │ implementuje              │ implementuje
+  ┌──────▼──────────┐       ┌────────▼──────────────┐
+  │  KonsolaLogger  │       │   LoggerDekorator      │
+  │  (rdzeń)        │       │   - opakowany: Logger  │
+  └─────────────────┘       └────────┬──────────────-┘
+                                     │ rozszerza
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                 ▼
+             CzasDekorator    PlikDekorator    PoziomDekorator
+```
+
+---
+
+## 6. Dlaczego Dekorator jest ważny?
+
+**Elastyczność ponad dziedziczeniem** — zamiast ustalać zachowanie na etapie kompilacji przez hierarch klas, składamy je dynamicznie w runtime. To jedna z najważniejszych zalet wzorca.
+
+**Zgodność z SRP** — każdy dekorator ma jedną odpowiedzialność. `CzasDekorator` wie tylko jak dodać czas. `PlikDekorator` wie tylko jak zapisać do pliku. Logika nie jest zduplikowana.
+
+**Zgodność z OCP** — dodanie nowej funkcjonalności (np. `SlackDekorator` wysyłający alerty do Slacka) to stworzenie nowej klasy. Żaden istniejący kod nie jest modyfikowany.
+
+**Przejrzystość kompozycji** — czytając `new PlikDekorator(new CzasDekorator(new KonsolaLogger()))` od razu widzimy, jakie warstwy są aktywne. To dosłowna dokumentacja konfiguracji w kodzie.
+
+**Kiedy Dekorator NIE jest najlepszym wyborem:**
+
+Wzorzec wprowadza złożoność w debugowaniu — gdy coś idzie nie tak w stosie dekoratorów, trzeba przejść przez każdą warstwę. Jeśli kombinacji jest mało i są stabilne — zwykłe dziedziczenie może być prostsze. Dekorator błyszczy przy wielu opcjach i dynamicznych konfiguracjach.
+
+---
+
+## 7. Kiedy stosować?
+
+**Dekorator ma sens, gdy:**
+
+- chcesz dodać zachowanie do obiektów **bez modyfikowania ich klasy** i bez tworzenia eksplozji podklas,
+- zachowania powinny być **kompozytowalne** — możliwe do łączenia w dowolnych kombinacjach,
+- różne obiekty potrzebują **różnych zestawów** dodatkowych funkcji,
+- chcesz móc **zmieniać konfigurację** obiektów w czasie działania programu.
+
+**Dekorator w popularnych bibliotekach Javy:**
+
+- **`java.io` — strumienie wejścia/wyjścia** — to podręcznikowy przykład Dekoratora w JDK:
+  ```java
+  // BufferedReader owijający InputStreamReader owijający FileInputStream
+  // Każda warstwa dodaje jedno zachowanie: buforowanie, dekodowanie, czytanie z pliku
+  new BufferedReader(new InputStreamReader(new FileInputStream("plik.txt")))
+  ```
+- **`Collections.synchronizedList()`** — owija listę dekoratorem dodającym synchronizację wątków,
+- **`Collections.unmodifiableList()`** — owija listę dekoratorem blokującym modyfikacje,
+- **Spring `BeanPostProcessor`** — mechanizm owijania beanów w dodatkowe zachowania (np. transakcje przez `@Transactional`, cache przez `@Cacheable`) to Dekorator zarządzany przez kontener,
+- **Spring Security** — łańcuch filtrów bezpieczeństwa (`SecurityFilterChain`) to stos dekoratorów nakładanych na żądanie HTTP.
+
+**Sygnały, że czas wprowadzić Dekorator:**
+
+- liczba podklas rośnie wykładniczo wraz z kolejnymi opcjami funkcjonalnymi,
+- ta sama logika (np. logowanie, pomiar czasu, cache) jest kopiowana między wieloma klasami,
+- klient musi wybierać zachowanie obiektu w czasie działania, nie w kodzie,
+- w code review pojawia się pytanie: _„Dlaczego mamy klasę `LoggerZCzasemIPlikiem` i osobno `LoggerZCzasemISlackiem`?"_
+
+---
+
+```
+1. Implementuje TEN SAM interfejs co opakowywany obiekt  → można go używać zamiennie
+2. Trzyma REFERENCJĘ do opakowanego obiektu              → deleguje wywołania
+3. Dodaje JEDNO nowe zachowanie                          → zgodność z SRP
+```

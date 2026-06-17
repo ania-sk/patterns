@@ -1,0 +1,367 @@
+## 1. Definicja
+
+**Pyłek** (ang. _Flyweight_) to strukturalny wzorzec projektowy, który pozwala zmieścić w pamięci większą liczbę obiektów przez
+**współdzielenie wspólnych części ich stanu** zamiast trzymania wszystkiego w każdym obiekcie osobno.
+
+> Use sharing to support large numbers of fine-grained objects efficiently.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **wyodrębnij to, co wspólne dla wielu obiektów, i przechowuj to w jednym miejscu — zamiast powielać w każdej instancji.**
+
+Pyłek należy do grupy **wzorców strukturalnych**, obok takich wzorców jak Adapter, Dekorator czy Fasada. O ile wzorce kreacyjne (Singleton, Builder, Factory)
+zajmowały się tym, jak tworzyć obiekty, wzorce strukturalne zajmują się tym **jak je organizować i łączyć**.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie las w grze komputerowej.
+
+Las składa się z setek tysięcy drzew. Każde drzewo ma swoją unikalną pozycję na mapie. Każde drzewo ma też gatunek,
+teksturę kory, kształt korony, kolor liści i tutaj robi się ciekawie: **drzewo numer 47 832 wygląda dokładnie tak samo
+jak drzewo numer 12 i drzewo numer 8 941**, bo wszystkie trzy to sosny. Różnią się tylko pozycją.
+
+Naiwna implementacja: każde z 100 000 drzew to osobny obiekt, który trzyma w pamięci pełne dane, łącznie z teksturą o rozmiarze 2 MB.
+Wynik: 200 GB zużytej pamięci. Gra pada.
+
+Sprytna implementacja: trzymamy **jeden obiekt Sosna** ze wszystkimi danymi wizualnymi, i **100 000 lekkich obiektów pozycji**,
+z których każdy tylko wskazuje na wspólną Sosnę. Wynik: kilkadziesiąt MB. Gra działa.
+
+To jest Pyłek — współdzielenie tego, co niezmienne i wspólne, by nie duplikować go tysiące razy.
+
+Ćwiczenie myślowe: zanim przejdziemy do kodu, wyobraź sobie edytor tekstu. Mamy dokument z 50000 znaków.
+Każdy znak to obiekt z informacją o literze, czcionce, rozmiarze, kolorze. Ile znaków w całym dokumencie ma czcionkę Arial 12pt czarną?
+Prawdopodobnie 90%, te 45000 obiektów mogłoby współdzielić jeden obiekt stylu, zamiast każdy trzymać swój własny.
+
+---
+
+## 3. Kluczowe pojęcia — stan wewnętrzny i zewnętrzny
+
+Zanim zobaczymy kod, musimy zrozumieć podział, który jest sercem wzorca.
+
+**Stan wewnętrzny** (_intrinsic state_) — dane, które są **wspólne** dla wielu obiektów i się **nie zmieniają** w zależności od kontekstu. To właśnie ten stan współdzielimy. Dla drzewa w grze: gatunek, tekstura, model 3D. Dla znaku w edytorze: czcionka, rozmiar, kolor.
+
+**Stan zewnętrzny** (_extrinsic state_) — dane, które są **unikalne** dla każdego wystąpienia i zmieniają się w zależności od kontekstu. Tego stanu nie współdzielimy — przekazujemy go z zewnątrz, w momencie użycia. Dla drzewa: pozycja X, Y na mapie. Dla znaku: pozycja w dokumencie, zaznaczenie.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  PYŁEK                                                       │
+│                                                              │
+│  Stan wewnętrzny (współdzielony):                            │
+│  ┌───────────────┐                                           │
+│  │ Sosna         │◄───────────┐───────────────┐──────┐       │
+│  │ gatunek: "sosna"           │               │      │       │
+│  │ tekstura: [dane 2MB]       │               │      │       │
+│  │ kolorLisci: "ciemnozielony"│               │      │       │
+│  └───────────────┘            │               │      │       │
+│                               │               │      │       │
+│  Stan zewnętrzny (unikalny):  │               │      │       │
+│  ┌───────────────┐            │  ┌──────────┐ │ ┌──────────┐ │
+│  │ Drzewo #1     │────────────┘  │ Drzewo #2│─┘ │ Drzewo #3│ │
+│  │ x: 10, y: 25  │               │ x: 847   │   │ x: 2341  │ │
+│  └───────────────┘               │ y: 392   │   │ y: 78    │ │
+│                                  └──────────┘   └──────────┘ │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Przykład — naruszenie (bez Pyłka)
+
+Tworzymy grę strategiczną z dużą mapą. Na mapie mogą stać żołnierze różnych typów — piechota, łucznicy, rycerze. Każdy żołnierz to osobny obiekt z pełnymi danymi.
+
+```java
+class Zolnierz {
+
+    // Stan wewnętrzny — taki sam dla wszystkich żołnierzy tego samego typu
+    // Duplikowany w KAŻDEJ instancji
+    private String typ;           // "Piechota", "Łucznik", "Rycerz"
+    private String teksturaSprite; // w rzeczywistości: dane binarne, dziesiątki KB
+    private String animacjaAtaku;  // opis animacji — ten sam dla każdego łucznika
+    private int bazoweSilaAtaku;   // statystyka bazowa — identyczna dla tego samego typu
+
+    // Stan zewnętrzny — unikalny dla każdego żołnierza
+    private int x;
+    private int y;
+    private int aktualnePunktyZycia;
+
+    public Zolnierz(String typ, String teksturaSprite, String animacjaAtaku,
+                    int bazoweSilaAtaku, int x, int y) {
+        this.typ = typ;
+        this.teksturaSprite = teksturaSprite; // kopiujemy dla każdego obiektu osobno!
+        this.animacjaAtaku = animacjaAtaku;   // kopiujemy dla każdego obiektu osobno!
+        this.bazoweSilaAtaku = bazoweSilaAtaku;
+        this.x = x;
+        this.y = y;
+        this.aktualnePunktyZycia = 100;
+    }
+
+    public void renderuj() {
+        System.out.println("Renderuję " + typ + " na pozycji (" + x + ", " + y + ")");
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        List<Zolnierz> armia = new ArrayList<>();
+
+        // Tworzymy 10 000 łuczników — każdy trzyma własną kopię tekstury i animacji
+        for (int i = 0; i < 10_000; i++) {
+            armia.add(new Zolnierz(
+                "Łucznik",
+                "[dane tekstury łucznika — 50KB]",  // powielone 10 000 razy = 500MB!
+                "[animacja strzału]",                // powielone 10 000 razy
+                15,
+                (int)(Math.random() * 1000),
+                (int)(Math.random() * 1000)
+            ));
+        }
+
+        // Każdy z 10 000 obiektów trzyma identyczne dane tekstury i animacji
+        // Marnujemy setki megabajtów na duplikaty
+        System.out.println("Armia liczy: " + armia.size() + " żołnierzy");
+    }
+}
+```
+
+**Co jest tutaj złe?**
+
+Każdy z 10 000 łuczników trzyma własną kopię dokładnie tych samych danych — tekstury, animacji, statystyk bazowych. To tak, jakby każdy pracownik biura trzymał w szufladzie własny wydruk regulaminu firmy zamiast sięgnąć po jeden egzemplarz z tablicy ogłoszeń.
+
+**Konkretne konsekwencje:**
+
+- **nadmierne zużycie pamięci** — dane wspólne zwielokrotnione przez liczbę obiektów,
+- **spowolnienie aplikacji** — więcej danych w pamięci to więcej operacji dla garbage collectora,
+- **brak spójności** — gdy zmieniamy dane wspólne (np. poprawiamy teksturę), musimy zaktualizować każdy obiekt osobno,
+- **niemożliwość skalowania** — gra z 100 000 jednostkami po prostu nie zmieści się w pamięci.
+
+---
+
+## 5. Przykład — zgodny z wzorcem Pyłek
+
+Podejdźmy do tego lepiej. Rozdzielamy stan wewnętrzny (wspólny) od zewnętrznego (unikalnego) i współdzielimy ten pierwszy.
+
+```java
+// Pyłek — zawiera TYLKO stan wewnętrzny (wspólny, niezmienny)
+// Ten obiekt będzie współdzielony przez tysiące wystąpień
+class TypZolnierza {
+
+    // Dane wspólne dla wszystkich żołnierzy tego samego typu — przechowywane raz
+    private final String typ;
+    private final String teksturaSprite; // jeden egzemplarz dla wszystkich łuczników
+    private final String animacjaAtaku;  // jeden egzemplarz dla wszystkich łuczników
+    private final int bazowaSilaAtaku;
+
+    public TypZolnierza(String typ, String teksturaSprite,
+                        String animacjaAtaku, int bazowaSilaAtaku) {
+        this.typ = typ;
+        this.teksturaSprite = teksturaSprite;
+        this.animacjaAtaku = animacjaAtaku;
+        this.bazowaSilaAtaku = bazowaSilaAtaku;
+    }
+
+    // Stan zewnętrzny (pozycja) przekazywany jako parametr — nie przechowywany w pyłku
+    public void renderuj(int x, int y) {
+        System.out.println("Renderuję " + typ + " [" + teksturaSprite + "]"
+                           + " na pozycji (" + x + ", " + y + ")");
+    }
+
+    public int getBazowaSilaAtaku() {
+        return bazowaSilaAtaku;
+    }
+}
+```
+
+```java
+// Fabryka pyłków — zarządza pulą współdzielonych obiektów TypZolnierza
+// Gwarantuje, że dla każdego typu istnieje dokładnie jedna instancja
+class FabrykaPylkow {
+
+    // Cache — przechowuje już utworzone pyłki, by nie tworzyć duplikatów
+    private static final Map<String, TypZolnierza> cache = new HashMap<>();
+
+    public static TypZolnierza pobierz(String typ) {
+        // Jeśli pyłek dla tego typu już istnieje — zwracamy istniejący
+        if (!cache.containsKey(typ)) {
+            // Tworzymy nowy pyłek tylko gdy pojawia się po raz pierwszy
+            cache.put(typ, utworzTyp(typ));
+            System.out.println("Tworzę nowy pyłek dla typu: " + typ);
+        }
+        return cache.get(typ);
+    }
+
+    private static TypZolnierza utworzTyp(String typ) {
+        return switch (typ) {
+            case "Łucznik"  -> new TypZolnierza("Łucznik",  "[tekstura łucznika]",  "[animacja strzału]", 15);
+            case "Piechota" -> new TypZolnierza("Piechota", "[tekstura piechoty]",  "[animacja ciosu]",   20);
+            case "Rycerz"   -> new TypZolnierza("Rycerz",   "[tekstura rycerza]",   "[animacja szarży]",  35);
+            default -> throw new IllegalArgumentException("Nieznany typ: " + typ);
+        };
+    }
+
+    public static int rozmiarCache() {
+        return cache.size();
+    }
+}
+```
+
+```java
+// Lekki obiekt kontekstu — zawiera TYLKO stan zewnętrzny (unikalny)
+// Zamiast duplikować dane, trzyma referencję do współdzielonego pyłka
+class Zolnierz {
+
+    // Referencja do współdzielonego pyłka — nie kopia danych!
+    private final TypZolnierza typ;
+
+    // Stan zewnętrzny — unikalny dla każdego żołnierza
+    private int x;
+    private int y;
+    private int aktualnePunktyZycia;
+
+    public Zolnierz(String nazwaTypu, int x, int y) {
+        // Pobieramy współdzielony pyłek — nie tworzymy nowego obiektu z danymi
+        this.typ = FabrykaPylkow.pobierz(nazwaTypu);
+        this.x = x;
+        this.y = y;
+        this.aktualnePunktyZycia = 100;
+    }
+
+    public void renderuj() {
+        // Delegujemy renderowanie do pyłka, przekazując stan zewnętrzny
+        typ.renderuj(x, y);
+    }
+
+    public void przesun(int noweX, int noweY) {
+        this.x = noweX;
+        this.y = noweY;
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+
+        List<Zolnierz> armia = new ArrayList<>();
+
+        // Tworzymy 10 000 łuczników
+        for (int i = 0; i < 10_000; i++) {
+            armia.add(new Zolnierz(
+                "Łucznik",
+                (int)(Math.random() * 1000),
+                (int)(Math.random() * 1000)
+            ));
+        }
+
+        // Dodajemy 5 000 rycerzy
+        for (int i = 0; i < 5_000; i++) {
+            armia.add(new Zolnierz(
+                "Rycerz",
+                (int)(Math.random() * 1000),
+                (int)(Math.random() * 1000)
+            ));
+        }
+
+        // Mimo 15 000 żołnierzy — mamy tylko 2 obiekty z ciężkimi danymi!
+        System.out.println("Żołnierzy w armii: " + armia.size());         // 15 000
+        System.out.println("Pyłków w pamięci: " + FabrykaPylkow.rozmiarCache()); // 2
+
+        // Renderujemy pierwszych kilku żołnierzy
+        armia.stream().limit(3).forEach(Zolnierz::renderuj);
+    }
+}
+```
+
+**Co zyskujemy?**
+
+15 000 żołnierzy, ale tylko 2 obiekty z ciężkimi danymi wizualnymi w pamięci. Każdy obiekt `Zolnierz` trzyma już tylko pozycję, punkty życia i referencję — kilkadziesiąt bajtów zamiast kilkudziesięciu kilobajtów. Zmiana tekstury łucznika wymaga aktualizacji jednego obiektu `TypZolnierza` — wszyscy łucznicy automatycznie ją "widzą".
+
+---
+
+## 6. Diagram struktury
+
+```
+  FabrykaPylkow
+  ┌──────────────────────────────┐
+  │ cache: Map<String, TypZoln.> │
+  │ + pobierz(typ): TypZolnierza │
+  └──────────────┬───────────────┘
+                 │ zarządza
+        ┌────────┼────────┐
+        ▼        ▼        ▼
+  ┌──────────┐ ┌──────┐ ┌────────┐
+  │ Łucznik  │ │Piech.│ │ Rycerz │   ← pyłki (stan wewnętrzny)
+  │ tekstura │ │ ...  │ │  ...   │     przechowywane RAZ
+  │ animacja │ └──────┘ └────────┘
+  └────┬─────┘
+       │ ◄──────────────────────────────────────┐
+       │ ◄─────────────────────────┐            │
+       │ ◄──────────┐              │            │
+       │            │              │            │
+  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │ Zołnierz │ │ Zołnierz │ │ Zołnierz │ │ Zołnierz │
+  │ x: 10    │ │ x: 847   │ │ x: 23    │ │ x: 512   │
+  │ y: 25    │ │ y: 392   │ │ y: 671   │ │ y: 88    │
+  │ hp: 100  │ │ hp: 75   │ │ hp: 100  │ │ hp: 50   │
+  └──────────┘ └──────────┘ └──────────┘ └──────────┘
+    stan zewnętrzny — unikalny dla każdego żołnierza
+```
+
+---
+
+## 7. Dlaczego Pyłek jest ważny?
+
+**Drastyczna redukcja zużycia pamięci** — to główna i jedyna motywacja wzorca. Gdy mamy tysiące lub miliony podobnych obiektów, współdzielenie wspólnych danych może zmniejszyć zużycie pamięci o kilka rzędów wielkości.
+
+**Wydajność garbage collectora** — mniej obiektów w pamięci to mniej pracy dla GC. W Javie ma to realne przełożenie na responsywność aplikacji, szczególnie w grach i systemach czasu rzeczywistego.
+
+**Spójność danych wspólnych** — zmiana stanu wewnętrznego w jednym miejscu natychmiast "propaguje się" do wszystkich obiektów, które go używają. Nie ma niespójnych kopii.
+
+**Kiedy Pyłek NIE jest potrzebny:**
+
+Wzorzec wprowadza złożoność — rozdzielenie stanu na wewnętrzny i zewnętrzny komplikuje kod. Warto go stosować tylko gdy:
+
+- liczba obiektów jest **naprawdę duża** (tysiące, miliony),
+- obiekty **faktycznie współdzielą** znaczącą ilość danych,
+- zużycie pamięci jest **realnym problemem** w aplikacji.
+
+Dla kilkudziesięciu obiektów — bez sensu. Dla miliona — rozważ koniecznie.
+
+---
+
+## 8. Kiedy stosować?
+
+**Pyłek ma sens w:**
+
+- **grach komputerowych** — drzewa, trawa, cząsteczki, żołnierze, NPC-e powtarzających się typów,
+- **edytorach tekstu i IDE** — każdy znak w dokumencie jako lekki obiekt ze współdzielonym stylem,
+- **systemach renderowania UI** — ikony, style, motywy współdzielone między komponentami,
+- **silnikach baz danych** — buforowanie metadanych tabel i kolumn używanych przez wiele zapytań,
+- **systemach symulacji** — miliony cząsteczek, komórek, agentów o powtarzających się właściwościach.
+
+**Pyłek w bibliotekach i JDK:**
+
+- **`Integer.valueOf(int)`** — Java cachuje obiekty `Integer` dla wartości od -128 do 127. `Integer.valueOf(42) == Integer.valueOf(42)` zwraca `true` — to ten sam obiekt z puli,
+- **`String.intern()`** — pula stringów (String Pool) w JVM to klasyczna implementacja Pyłka: identyczne literały stringów współdzielą jeden obiekt w pamięci,
+- **`Boolean.TRUE` / `Boolean.FALSE`** — tylko dwie instancje `Boolean` w całej JVM,
+- **AWT/Swing `Font`** — obiekty czcionek są cachowane i współdzielone między komponentami UI.
+
+**Sygnały, że czas rozważyć Pyłka:**
+
+- profiler pokazuje setki tysięcy obiektów tego samego typu w pamięci,
+- `OutOfMemoryError` przy tworzeniu dużej liczby podobnych obiektów,
+- aplikacja zwalnia przy zwiększeniu liczby encji na ekranie lub w symulacji,
+- wiele obiektów trzyma identyczne, niezmienne dane — widać to w heap dumpie.
+
+---
+
+Trzy pytania do zidentyfikowania Pyłka:
+
+```
+1. Czy mam WIELE obiektów tego samego typu?       → potencjalny kandydat
+2. Czy te obiekty współdzielą ZNACZĄCE ilości danych? → warto rozważyć
+3. Czy pamięć jest realnym PROBLEMEM?             → czas na Pyłka
+```
