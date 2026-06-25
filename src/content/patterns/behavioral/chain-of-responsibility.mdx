@@ -1,0 +1,344 @@
+## 1. Definicja
+
+**Chain of Responsibility** (Łańcuch Odpowiedzialności) to behawioralny wzorzec projektowy, który pozwala przekazywać
+żądanie wzdłuż łańcucha potencjalnych obsługujących, dopóki jedno z nich nie obsłuży żądania.
+
+> Avoid coupling the sender of a request to its receiver by giving more than one object a chance to handle the request.
+> Chain the receiving objects and pass the request along the chain until an object handles it.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **żądanie wędruje przez kolejne ogniwa łańcucha, aż znajdzie to, które potrafi je obsłużyć.**
+
+Każde ogniwo ma dwie opcje: obsłużyć żądanie samodzielnie lub przekazać je dalej — do następnego ogniwa.
+Nadawca żądania nie wie, który obiekt je finalnie obsłuży. To łańcuch decyduje.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że składamy reklamację w dużej firmie telekomunikacyjnej.
+
+Dzwonimy na infolinię. Odbiera konsultant pierwszego poziomu — sprawdza sprawę, ale nie ma uprawnień, by przyznać nam zwrot powyżej 50 zł.
+Przekazuje nas do swojego przełożonego. Przełożony ma kompetencje do 500 zł, ale nasz zwrot opiewa na 2000 zł. Sprawa trafia do
+działu reklamacji, który może zatwierdzić kwoty do 5000 zł. Tam właśnie decyzja zostaje podjęta — i żądanie kończy swój bieg.
+
+```
+Klient --> Konsultant (do 50 zł) --> Przełożony (do 500 zł) --> Dział Reklamacji (do 5000 zł) --> Dyrektor (powyżej 5000 zł)
+```
+
+Kluczowa obserwacja: jako klient **nie wiemy z góry**, kto obsłuży naszą sprawę. Dzwonimy na jeden numer, a system
+sam kieruje żądanie dalej, aż dotrze do właściwej osoby.
+
+Co ważne — każdy poziom ma jasno określone kompetencje. Konsultant nie podejmuje decyzji powyżej swojego zakresu.
+Nie obciąża też dyrektora sprawami, które sam może rozwiązać. Każde ogniwo robi tylko tyle, ile do niego należy.
+
+**Ćwiczenie myślowe:** wyobraźmy sobie teraz, że tworzymy system obsługi logów w aplikacji. Mamy logi o różnym
+poziomie ważności: `DEBUG`, `INFO`, `WARNING`, `ERROR`. W zależności od poziomu chcemy wykonać inną akcję — zapisać do konsoli,
+zapisać do pliku, wysłać powiadomienie e-mail. Czy każdy log musi wiedzieć z góry, gdzie trafi? Czy nadawca logu powinien sam
+decydować o wszystkich kanałach? Zobaczmy, jak wzorzec CoR rozwiązuje ten problem.
+
+---
+
+## 3. Przykład — naruszenie CoR
+
+Wyobraźmy sobie, że tworzymy prosty system logowania dla aplikacji Java. Na początku mamy trzy poziomy logów i chcemy obsługiwać je w jednym miejscu.
+
+Kuszące wydaje się rozwiązanie: jedna klasa `LogProcessor`, która sprawdza poziom i decyduje, co zrobić.
+
+```java
+// Klasa "boga" - wie za dużo i robi za dużo
+class LogProcessor {
+
+    // Jedna metoda obsługuje WSZYSTKIE poziomy logów
+    // Problem: każde dodanie nowego poziomu wymaga modyfikacji tej klasy
+    public void process(String message, int level) {
+
+        if (level == 1) {
+            // Poziom DEBUG - tylko konsola
+            System.out.println("[DEBUG] " + message);
+
+        } else if (level == 2) {
+            // Poziom INFO - konsola i zapis do pliku
+            System.out.println("[INFO] " + message);
+            writeToFile(message);
+
+        } else if (level == 3) {
+            // Poziom ERROR - konsola, plik i e-mail
+            // Problem: logika wysyłki maila jest WEWNĄTRZ logiki logowania
+            System.out.println("[ERROR] " + message);
+            writeToFile(message);
+            sendEmail(message);
+
+        } else if (level == 4) {
+            // CRITICAL - konsola, plik, e-mail i SMS
+            // Każdy nowy poziom to kolejna gałąź if-else
+            System.out.println("[CRITICAL] " + message);
+            writeToFile(message);
+            sendEmail(message);
+            sendSms(message);
+        }
+        // Co gdy dodamy poziom AUDIT? SECURITY? PERFORMANCE?
+        // Musimy wracać do tej klasy za każdym razem
+    }
+
+    private void writeToFile(String message) { /* ... */ }
+    private void sendEmail(String message) { /* ... */ }
+    private void sendSms(String message) { /* ... */ }
+}
+```
+
+**Co jest złe w tym podejściu?**
+
+Klasa `LogProcessor` narusza zasadę **otwarte-zamknięte (OCP)** — aby dodać nowy poziom logowania, musimy modyfikować istniejący kod. Ale to nie jedyny problem.
+
+**Problemy konkretne:**
+
+- **Brak elastyczności w kolejności obsługi** — nie możemy łatwo zmienić, który poziom trafia do jakiego kanału, bez modyfikacji całej metody `process`.
+- **Trudność testowania** — chcąc przetestować samą logikę wysyłki e-maila, musimy dostarczyć poprawny poziom logu i przebrnąć przez wszystkie gałęzie `if-else`.
+- **Rosnąca złożoność** — 4 poziomy to 4 gałęzie. W realnym systemie może ich być 10, a każda wykonuje inną kombinację akcji. Metoda rośnie w nieskończoność.
+- **Naruszenie SRP** — jedna metoda odpowiada jednocześnie za routing żądań (który poziom idzie gdzie) i za ich obsługę (jak wysłać e-mail, jak zapisać do pliku).
+
+---
+
+## 4. Przykład — zgodny z CoR
+
+Jak byśmy podeszli do tego lepiej? Zamiast jednego monolitu, zbudujemy łańcuch niezależnych ogniw. Każde ogniwo wie tylko tyle: jakie żądania obsługuje
+i gdzie przekazać resztę.
+
+**Krok 1: Definiujemy wspólny interfejs dla każdego ogniwa łańcucha.**
+
+```java
+// Abstrakcyjna klasa bazowa — każde ogniwo łańcucha ją rozszerza
+// Przechowuje referencję do następnego ogniwa (next)
+abstract class LogHandler {
+
+    // Poziom, powyżej którego to ogniwo zaczyna działać
+    protected int level;
+
+    // Następne ogniwo w łańcuchu — może być null (koniec łańcucha)
+    private LogHandler nextHandler;
+
+    // Ustawiamy następne ogniwo i zwracamy je, by można było łączyć w łańcuch:
+    // consoleHandler.setNext(fileHandler).setNext(emailHandler)
+    public LogHandler setNext(LogHandler nextHandler) {
+        this.nextHandler = nextHandler;
+        return nextHandler;
+    }
+
+    // Metoda szablonowa: sprawdza poziom i albo obsługuje, albo przekazuje dalej
+    public void log(String message, int level) {
+        if (this.level <= level) {
+            // Ten handler jest odpowiedzialny za ten poziom — obsługuje
+            write(message);
+        }
+        if (nextHandler != null) {
+            // Przekazujemy dalej, niezależnie od tego czy obsłużyliśmy
+            // (logi ERROR powinny trafić i do pliku, i do e-maila)
+            nextHandler.log(message, level);
+        }
+    }
+
+    // Konkretna logika obsługi — każde ogniwo implementuje po swojemu
+    protected abstract void write(String message);
+}
+```
+
+**Krok 2: Implementujemy konkretne ogniwa — jedno zadanie, jedna klasa.**
+
+```java
+// Ogniwo 1: Obsługuje poziom DEBUG i wyżej — pisze do konsoli
+class ConsoleHandler extends LogHandler {
+
+    public ConsoleHandler(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void write(String message) {
+        // Odpowiedzialność: wyłącznie wypisanie na konsolę
+        System.out.println("[KONSOLA] " + message);
+    }
+}
+
+// Ogniwo 2: Obsługuje poziom WARNING i wyżej — zapisuje do pliku
+class FileHandler extends LogHandler {
+
+    public FileHandler(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void write(String message) {
+        // Odpowiedzialność: wyłącznie zapis do pliku
+        System.out.println("[PLIK] Zapisano: " + message);
+    }
+}
+
+// Ogniwo 3: Obsługuje poziom ERROR i wyżej — wysyła e-mail
+class EmailHandler extends LogHandler {
+
+    public EmailHandler(int level) {
+        this.level = level;
+    }
+
+    @Override
+    protected void write(String message) {
+        // Odpowiedzialność: wyłącznie wysyłka powiadomienia
+        System.out.println("[EMAIL] Wysłano alert: " + message);
+    }
+}
+```
+
+**Krok 3: Składamy łańcuch i wysyłamy żądania.**
+
+```java
+class Application {
+
+    // Stałe poziomów logowania
+    static final int DEBUG   = 1;
+    static final int INFO    = 2;
+    static final int WARNING = 3;
+    static final int ERROR   = 4;
+
+    public static void main(String[] args) {
+
+        // Tworzymy ogniwa
+        LogHandler consoleHandler = new ConsoleHandler(DEBUG);
+        LogHandler fileHandler    = new FileHandler(WARNING);
+        LogHandler emailHandler   = new EmailHandler(ERROR);
+
+        // Składamy łańcuch: konsola → plik → e-mail
+        // setNext() zwraca nextHandler, więc można łączyć w jeden ciąg
+        consoleHandler
+            .setNext(fileHandler)
+            .setNext(emailHandler);
+
+        // Żądanie DEBUG — obsługuje tylko konsola
+        System.out.println("--- Log DEBUG ---");
+        consoleHandler.log("Połączenie z bazą ustanowione", DEBUG);
+        // [KONSOLA] Połączenie z bazą ustanowione
+
+        // Żądanie WARNING — konsola + plik
+        System.out.println("--- Log WARNING ---");
+        consoleHandler.log("Pamięć powyżej 80%", WARNING);
+        // [KONSOLA] Pamięć powyżej 80%
+        // [PLIK] Zapisano: Pamięć powyżej 80%
+
+        // Żądanie ERROR — konsola + plik + e-mail
+        System.out.println("--- Log ERROR ---");
+        consoleHandler.log("Baza danych niedostępna!", ERROR);
+        // [KONSOLA] Baza danych niedostępna!
+        // [PLIK] Zapisano: Baza danych niedostępna!
+        // [EMAIL] Wysłano alert: Baza danych niedostępna!
+    }
+}
+```
+
+**Porównanie przed/po:**
+
+Wcześniej `LogProcessor` wiedział o wszystkich kanałach jednocześnie i decydował, które kombinacje je uruchamiają.
+Teraz każde ogniwo zna tylko swój próg i swoje zadanie. Żeby dodać nowy kanał (SMS dla CRITICAL), tworzymy nową klasę `SmsHandler` i
+dołączamy ją na końcu łańcucha. Żaden istniejący kod nie ulega zmianie.
+
+---
+
+## 5. Diagram — struktura łańcucha
+
+```
+          ŻĄDANIE (level=ERROR)
+               │
+               ▼
+    ┌─────────────────────┐
+    │   ConsoleHandler    │  level=DEBUG (1 <= 4) ✓ obsługuje
+    │  write(message)     │──────────────────────────────────── [KONSOLA]
+    └──────────┬──────────┘
+               │ przekazuje dalej
+               ▼
+    ┌─────────────────────┐
+    │    FileHandler      │  level=WARNING (3 <= 4) ✓ obsługuje
+    │  write(message)     │──────────────────────────────────── [PLIK]
+    └──────────┬──────────┘
+               │ przekazuje dalej
+               ▼
+    ┌─────────────────────┐
+    │   EmailHandler      │  level=ERROR (4 <= 4) ✓ obsługuje
+    │  write(message)     │──────────────────────────────────── [EMAIL]
+    └──────────┬──────────┘
+               │
+              null  ◄── koniec łańcucha
+```
+
+```
+          ŻĄDANIE (level=DEBUG)
+               │
+               ▼
+    ┌─────────────────────┐
+    │   ConsoleHandler    │  level=DEBUG (1 <= 1) ✓ obsługuje
+    │  write(message)     │──────────────────────────────────── [KONSOLA]
+    └──────────┬──────────┘
+               │ przekazuje dalej
+               ▼
+    ┌─────────────────────┐
+    │    FileHandler      │  level=WARNING (3 <= 1) ✗ pomija
+    └──────────┬──────────┘
+               │ przekazuje dalej
+               ▼
+    ┌─────────────────────┐
+    │   EmailHandler      │  level=ERROR (4 <= 1) ✗ pomija
+    └──────────┬──────────┘
+               │
+              null
+```
+
+---
+
+## 6. Dlaczego Chain of Responsibility jest ważne?
+
+**Luźne powiązanie między nadawcą a odbiorcą.** Klasa, która wysyła żądanie, nie zna konkretnego obiektu, który je obsłuży. Zna tylko pierwsze ogniwo łańcucha. To oznacza, że możemy zmieniać łańcuch bez modyfikowania kodu, który żądanie wysyła.
+
+**Elastyczna konfiguracja w czasie działania.** Łańcuch jest złożony z obiektów, więc możemy go budować dynamicznie — na przykład na podstawie konfiguracji z pliku lub bazy danych. W środowisku produkcyjnym wysyłamy e-maile dla ERROR, w środowisku testowym — tylko logujemy do konsoli. Zmiana nie wymaga rekompilacji.
+
+**Otwarte-zamknięte w praktyce.** Dodanie nowego ogniwa (nowego kanału, nowej reguły) to dodanie nowej klasy i dołączenie jej do łańcucha. Istniejące ogniwa pozostają niezmienione.
+
+**Łatwość testowania.** Każde ogniwo testujemy osobno, w izolacji. `EmailHandler` można przetestować bez uruchamiania `ConsoleHandler` czy `FileHandler`. Wystarczy przekazać odpowiedni poziom logu.
+
+**Wpływ na pracę zespołu.** Różne osoby mogą rozwijać różne ogniwa łańcucha niezależnie. Brak współdzielonego stanu między ogniwami oznacza brak konfliktów przy scalaniu zmian.
+
+**Konsekwencje zaniedbania w dużych projektach.** W systemach enterprise bez CoR często powstają metody `process()` lub `handle()` liczące setki linii, z zagnieżdżonymi blokami `if-else`. Każda zmiana w logice obsługi jednego poziomu może przypadkowo wpłynąć na inny. Takie klasy stają się miejscem, do którego wszyscy boją się zaglądać.
+
+---
+
+## 7. Kiedy stosować?
+
+**Walidacja żądań w pipeline'ach.** Systemy walidacji formularzy lub danych API to naturalny dom dla CoR. Każda reguła walidacji (czy pole jest niepuste? czy e-mail ma poprawny format? czy wartość mieści się w zakresie?) to osobne ogniwo. Łańcuch zatrzymuje się na pierwszym naruszeniu lub przechodzi przez wszystkie reguły.
+
+**Middleware w frameworkach webowych.** Spring Security buduje łańcuch filtrów (`SecurityFilterChain`), przez który przechodzi każde żądanie HTTP. Uwierzytelnianie, autoryzacja, CORS, CSRF — każda odpowiedzialność to osobny filtr. Kolejność ma znaczenie, a konfiguracja jest deklaratywna.
+
+```java
+// Spring Security — klasyczny przykład CoR w praktyce
+http
+    .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+    .addFilterAfter(auditLogFilter, JwtAuthFilter.class);
+```
+
+**Obsługa zdarzeń w UI.** W przeglądarkach zdarzenia DOM propagują przez drzewo elementów — to również łańcuch odpowiedzialności. Kliknięcie na przycisk trafia do przycisku, potem do sekcji, potem do dokumentu. Każdy element może je obsłużyć lub przepuścić dalej.
+
+**Systemy helpdesk i eskalacji.** Wnioski urlopowe, zgłoszenia serwisowe, prośby o zatwierdzenie wydatków — wszędzie tam, gdzie istnieje hierarchia uprawnień i poziomy kompetencji, CoR modeluje rzeczywistość naturalnie.
+
+**Kiedy CoR jest szczególnie wartościowe:**
+
+- gdy liczba rodzajów żądań lub obsługujących rośnie i trudno przewidzieć wszystkie kombinacje,
+- gdy kolejność obsługi ma znaczenie i może się zmieniać,
+- gdy chcemy, aby jedno żądanie mogło być obsłużone przez _wiele_ ogniw (tak jak w przykładzie z logami),
+- gdy chcemy, aby jedno żądanie mogło zatrzymać się na _pierwszym_ pasującym ogniwie (tak jak w walidacji).
+
+**Kiedy CoR może być zbędne:**
+
+- gdy mamy stałą, małą liczbę obsługujących i nie spodziewamy się zmian — prosty `if-else` jest wtedy czytelniejszy,
+- gdy żądanie zawsze trafia do jednego konkretnego odbiorcy — CoR wnosi tu tylko złożoność bez korzyści.
+
+---
+
+> Wyobraź sobie reklamację w urzędzie.
+> Każde okienko ma swoje kompetencje. Jeśli twoja sprawa jest poza zakresem, dostajesz kartkę z numerem kolejnego okienka.
+> **Wiele okienek, jedna kolejka, każde robi swoje.**

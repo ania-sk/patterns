@@ -80,7 +80,6 @@ export const patternGroups: PatternGroup[] = [
         name: "Abstract Factory",
         status: "done",
       },
-      { slug: "prototype", name: "Prototype", status: "todo" },
     ],
   },
   {
@@ -99,9 +98,21 @@ export const patternGroups: PatternGroup[] = [
     categorySlug: "behavioral",
     patterns: [
       { slug: "observer", name: "Observer", status: "todo" },
+      {
+        slug: "chain-of-responsibility",
+        name: "Chain of Responsibility",
+        status: "in-progress",
+      },
+      {
+        slug: "template-method",
+        name: "Template Method",
+        status: "in-progress",
+      },
+      { slug: "command", name: "Command", status: "in-progress" },
+      { slug: "memento", name: "Memento", status: "in-progress" },
       { slug: "strategy", name: "Strategy", status: "todo" },
-      { slug: "command", name: "Command", status: "todo" },
-      { slug: "iterator", name: "Iterator", status: "todo" },
+      { slug: "visitor", name: "Visitor", status: "todo" },
+      { slug: "state", name: "State", status: "todo" },
     ],
   },
 ];

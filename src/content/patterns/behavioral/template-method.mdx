@@ -1,0 +1,294 @@
+## 1. Definicja
+
+**Metoda Szablonowa** (_Template Method_) to wzorzec behawioralny, który definiuje szkielet algorytmu w metodzie klasy bazowej, pozostawiając konkretne kroki do zaimplementowania klasom pochodnym.
+
+> Define the skeleton of an algorithm in an operation, deferring some steps to subclasses.
+> Template Method lets subclasses redefine certain steps of an algorithm without changing
+> the algorithm's structure.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **klasa bazowa mówi „co" i „w jakiej kolejności", a klasy pochodne mówią „jak".**
+
+Oznacza to, że niezmienną strukturę — kolejność kroków, ich powiązania — definiujemy raz, w jednym miejscu. Tylko te fragmenty, które różnią się w zależności od kontekstu, oddajemy do nadpisania podklasom.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że uruchamiamy sieć kawiarni. Każda filia serwuje kawę inaczej — inna kawa ziarnista, inny dodatek do mleka, inny sposób podania. Mimo to w każdej kawiarni proces parzenia kawy wygląda identycznie pod względem kolejności kroków:
+
+1. Zagotuj wodę.
+2. Zaparz kawę (tu każda kawiarnia robi to inaczej).
+3. Wlej do kubka.
+4. Dodaj dodatki (tu też każda kawiarnia różni się).
+
+Nie ma sensu, żeby każda filia wymyślała od nowa kolejność tych kroków — to przepis na chaos i błędy. Zamiast tego właściciel sieci drukuje **instrukcję szablonową**, która opisuje niezmienną sekwencję. Każda filia wypełnia tylko te miejsca, w których naprawdę się różni.
+
+Właśnie tak działa Metoda Szablonowa.
+
+**Ćwiczenie myślowe:** wyobraź sobie, że musisz napisać trzy różne eksportery danych — do CSV, do JSON i do XML. Każdy z nich robi po kolei: otwiera plik, przetwarza każdy rekord, zamyka plik. Różnią się tylko formatem, w jakim zapisują rekord. Czy warto pisać całą logikę otwierania i zamykania pliku osobno w każdym eksporterze? Odpowiedź na to pytanie zaprowadzi nas prosto do kodu.
+
+---
+
+## 3. Przykład — naruszenie Template Method
+
+Wyobraźmy sobie, że budujemy system raportowania dla aplikacji e-commerce. Mamy trzy rodzaje raportów: PDF, HTML i CSV. Każdy z nich realizuje ten sam algorytm generowania raportu.
+
+Programista bez znajomości wzorca zaimplementuje to tak:
+
+```java
+// Klasa generująca raport PDF - cały algorytm wpleciony w jedną klasę
+class PdfReportGenerator {
+
+    public void generate(List<Order> orders) {
+        // Krok 1: inicjalizacja - identyczny w każdym generatorze
+        System.out.println("Inicjalizacja generatora PDF...");
+        openDocument();
+
+        // Krok 2: nagłówek - różny dla PDF i HTML, identyczny dla CSV
+        writePdfHeader();
+
+        // Krok 3: przetwarzanie danych - logika identyczna w każdym generatorze
+        for (Order order : orders) {
+            formatAsPdf(order);
+        }
+
+        // Krok 4: stopka - różna w zależności od formatu
+        writePdfFooter();
+
+        // Krok 5: zamknięcie - identyczne w każdym generatorze
+        closeDocument();
+        System.out.println("Raport PDF gotowy.");
+    }
+
+    private void openDocument()   { /* ... */ }
+    private void writePdfHeader() { /* ... */ }
+    private void formatAsPdf(Order o) { /* ... */ }
+    private void writePdfFooter() { /* ... */ }
+    private void closeDocument()  { /* ... */ }
+}
+
+// Klasa generująca raport HTML - zduplikowana struktura algorytmu
+class HtmlReportGenerator {
+
+    public void generate(List<Order> orders) {
+        // Duplikat: te same kroki inicjalizacji co w PDF
+        System.out.println("Inicjalizacja generatora HTML...");
+        openDocument();
+
+        // Duplikat kroku nagłówka — różni się tylko implementacją
+        writeHtmlHeader();
+
+        // Duplikat: ta sama pętla przetwarzająca dane
+        for (Order order : orders) {
+            formatAsHtml(order);
+        }
+
+        // Duplikat kroku stopki
+        writeHtmlFooter();
+
+        // Duplikat: to samo zamknięcie dokumentu
+        closeDocument();
+        System.out.println("Raport HTML gotowy.");
+    }
+
+    private void openDocument()    { /* ... */ }
+    private void writeHtmlHeader() { /* ... */ }
+    private void formatAsHtml(Order o) { /* ... */ }
+    private void writeHtmlFooter() { /* ... */ }
+    private void closeDocument()   { /* ... */ }
+}
+```
+
+Co jest tutaj złe? Algorytm — czyli sekwencja: _otwórz → nagłówek → dane → stopka → zamknij_ — powtarza się w każdej klasie. Struktura zduplikowana, a konsekwencje tego są bolesne:
+
+- **Ryzyko rozbieżności:** jeśli właściciel produktu powie „dodajmy krok walidacji danych przed generowaniem", musimy zmienić każdą klasę osobno. Łatwo o pominięcie jednej z nich.
+- **Trudność testowania:** nie ma jednego miejsca, które możemy pokryć testem sprawdzającym poprawność kolejności kroków.
+- **Duplikacja kodu:** `openDocument()` i `closeDocument()` są identyczne — piszemy je trzy razy.
+- **Brak konwencji:** nowy programista nie wie, że CSV też powinien działać w tym samym schemacie. Może dodać etap walidacji tylko do dwóch generatorów.
+
+---
+
+## 4. Przykład — zgodny z Template Method
+
+Jak podeszlibyśmy do tego lepiej? Wyciągamy niezmienną strukturę algorytmu do klasy bazowej i zostawiamy w niej tylko „białe plamy" — metody abstrakcyjne, które każda podklasa wypełnia po swojemu.
+
+```java
+// Klasa bazowa definiuje szkielet algorytmu
+// Metoda generate() jest finalna — podklasy nie mogą zmienić kolejności kroków
+abstract class ReportGenerator {
+
+    // Metoda szablonowa — serce wzorca.
+    // final gwarantuje, że żadna podklasa nie nadpisze kolejności kroków.
+    public final void generate(List<Order> orders) {
+        initialize();       // krok wspólny — zaimplementowany tutaj
+        writeHeader();      // krok zmienny — każda podklasa nadpisuje
+        processOrders(orders); // krok wspólny — zaimplementowany tutaj
+        writeFooter();      // krok zmienny — każda podklasa nadpisuje
+        finalize();         // krok wspólny — zaimplementowany tutaj
+    }
+
+    // Kroki wspólne — zaimplementowane raz, tutaj
+    private void initialize() {
+        System.out.println("Inicjalizacja generatora " + getFormatName() + "...");
+        openDocument();
+    }
+
+    private void processOrders(List<Order> orders) {
+        // Pętla zawsze wygląda tak samo — nie duplikujemy jej w podklasach
+        for (Order order : orders) {
+            formatOrder(order);
+        }
+    }
+
+    private void finalize() {
+        closeDocument();
+        System.out.println("Raport " + getFormatName() + " gotowy.");
+    }
+
+    // Kroki zmienne — podklasy MUSZĄ je zaimplementować
+    protected abstract void writeHeader();
+    protected abstract void writeFooter();
+    protected abstract void formatOrder(Order order);
+    protected abstract String getFormatName();
+
+    // Metody pomocnicze wspólne dla wszystkich formatów
+    private void openDocument()  { /* otwórz strumień pliku */ }
+    private void closeDocument() { /* zamknij strumień pliku */ }
+}
+
+// Konkretna implementacja dla PDF — nadpisuje tylko to, co różni PDF od innych
+class PdfReportGenerator extends ReportGenerator {
+
+    @Override
+    protected void writeHeader() {
+        // Nagłówek specyficzny dla PDF: fonty, marginesy, logo
+        System.out.println("<PDF header>");
+    }
+
+    @Override
+    protected void writeFooter() {
+        System.out.println("<PDF footer z numeracją stron>");
+    }
+
+    @Override
+    protected void formatOrder(Order order) {
+        System.out.println("PDF wiersz: " + order.getId());
+    }
+
+    @Override
+    protected String getFormatName() { return "PDF"; }
+}
+
+// Konkretna implementacja dla HTML — takie same metody, inna treść
+class HtmlReportGenerator extends ReportGenerator {
+
+    @Override
+    protected void writeHeader() {
+        System.out.println("<html><body><table>");
+    }
+
+    @Override
+    protected void writeFooter() {
+        System.out.println("</table></body></html>");
+    }
+
+    @Override
+    protected void formatOrder(Order order) {
+        System.out.println("<tr><td>" + order.getId() + "</td></tr>");
+    }
+
+    @Override
+    protected String getFormatName() { return "HTML"; }
+}
+```
+
+**Co zyskujemy?**
+
+- Algorytm istnieje w dokładnie jednym miejscu — w metodzie `generate()`. Gdy product owner poprosi o dodanie kroku walidacji, zmieniamy jeden plik.
+- Słowo kluczowe `final` na metodzie szablonowej jest istotnym sygnałem: _ta kolejność jest nienaruszalna_. Podklasy mogą zmieniać treść kroków, ale nie ich kolejność.
+- Każda podklasa jest skupiona wyłącznie na swojej specyfice formatowania — jest krótka i czytelna.
+- Testy jednostkowe algorytmu piszemy raz, w klasie bazowej, mockując metody abstrakcyjne.
+
+---
+
+## 5. Diagram
+
+```
+      ReportGenerator
+      ┌──────────────────────────────────┐
+      │  + generate() : final            │  ← metoda szablonowa
+      │    ├─ initialize()               │  ← krok wspólny (zaimplementowany)
+      │    ├─ writeHeader()   [abstract] │  ← krok zmienny (do nadpisania)
+      │    ├─ processOrders() [private]  │  ← krok wspólny (zaimplementowany)
+      │    ├─ writeFooter()   [abstract] │  ← krok zmienny (do nadpisania)
+      │    └─ finalize()      [private]  │  ← krok wspólny (zaimplementowany)
+      └──────────────────────────────────┘
+                     ▲
+         ┌───────────┼────────────┐
+         │           │            │
+  PdfReport    HtmlReport    CsvReport
+  Generator    Generator     Generator
+  ┌────────┐  ┌──────────┐  ┌──────────┐
+  │write-  │  │write-    │  │write-    │
+  │Header()│  │Header()  │  │Header()  │
+  │write-  │  │write-    │  │write-    │
+  │Footer()│  │Footer()  │  │Footer()  │
+  │format- │  │format-   │  │format-   │
+  │Order() │  │Order()   │  │Order()   │
+  └────────┘  └──────────┘  └──────────┘
+```
+
+---
+
+## 6. Dlaczego Template Method jest ważne?
+
+**Eliminuje duplikację struktury algorytmu.** Najgroźniejszą formą duplikacji nie jest skopiowany blok kodu, ale skopiowana sekwencja operacji. Trudniej ją zauważyć podczas code review, a rozbieżności między kopiami ujawniają się dopiero przy zmianach wymagań.
+
+**Wymusza konwencję przez architekturę.** Jeśli nowy programista doda czwarty eksporter — powiedzmy XML — nie może „zapomnieć" o kroku inicjalizacji, bo klasa bazowa go wykona za niego. Wzorzec wymusza poprawność struktury na poziomie kompilacji, nie dokumentacji.
+
+**Upraszcza testowanie.** Algorytm strukturalny testujemy w jednym miejscu (klasa bazowa z mockami), a logikę formatowania — osobno, w izolacji od reszty. Dwa zestawy testów zamiast sześciu.
+
+**Wpływ na pracę zespołu:** gdy dwie osoby rozwijają równolegle `PdfReportGenerator` i `HtmlReportGenerator`, nie wchodzą sobie w drogę. Klasa bazowa zmienia się rzadko i przez jedną osobę odpowiedzialną za algorytm. Konflikty merge'owe są minimalne.
+
+**Rzeczywiste konsekwencje zaniedbania:** w dużych projektach bez tego wzorca widzimy sytuacje, gdzie jeden generator raportów ma dodatkowy krok audytu, a reszta nie — bo ktoś zapomniał go dodać. Albo gdzie pętla przetwarzająca dane jest nieznacznie różna w trzech miejscach i nikt nie wie, która wersja jest „prawidłowa".
+
+---
+
+## 7. Kiedy stosować?
+
+**Naturalne scenariusze:**
+
+- **Parsery i eksportery** — zawsze masz: otwórz źródło → przetwórz rekordy → zamknij. Format różni się, struktura nie.
+- **Kroki budowania / inicjalizacji** — np. Spring przy tworzeniu `ApplicationContext`: załaduj konfigurację → zarejestruj beany → uruchom post-procesory. Podklasy (`AnnotationConfigApplicationContext`, `ClassPathXmlApplicationContext`) nadpisują etap ładowania konfiguracji.
+- **Algorytmy sortowania z wymiennym komparatorem** — gdy szkielet algorytmu jest stały, ale kryterium porównywania zmienne.
+- **Frameworki testowe** — JUnit używa tej idei w `@Before` / `@After` (setUp/tearDown jako hook methods — odmiana Template Method).
+
+**Jak Spring i JDK stosują ten wzorzec:**
+
+- `HttpServlet` z Java EE: metoda `service()` to metoda szablonowa; `doGet()`, `doPost()` to kroki do nadpisania.
+- `AbstractList` w JDK: metoda `iterator()` jest zaimplementowana; podklasy dostarczają `get(int index)` i `size()`.
+- Spring's `JdbcTemplate`: szkielet operacji JDBC (otwórz połączenie → wykonaj zapytanie → obsłuż błędy → zamknij połączenie) jest stały; programista dostarcza tylko `RowMapper`.
+
+**Kiedy wzorzec jest szczególnie wartościowy:**
+
+- Gdy masz co najmniej dwie klasy robiące „to samo, ale trochę inaczej" i zamazuje ci się, gdzie naprawdę się różnią.
+- Gdy nowe klasy w rodzinie pojawiają się regularnie (nowy format eksportu co sprint) — każda nowa klasa automatycznie dziedziczy prawidłowy szkielet.
+- Gdy zmiana wymagań dotycząca procesu (np. „dodajmy logowanie przed każdym krokiem") ma trafić do wszystkich wariantów jednocześnie.
+
+**Kiedy NIE stosować:**
+
+- Gdy kroki algorytmu mają zupełnie inną kolejność w różnych wariantach — wtedy lepiej rozważyć wzorzec Strategii (Strategy), który zamiast dziedziczenia używa kompozycji.
+- Gdy hierarchia klas robi się głęboka (Generator → SpecializedGenerator → VerySpecializedGenerator) — zagnieżdżone wywołania metod szablonowych są trudne do śledzenia.
+- Gdy masz tylko jeden wariant algorytmu i nie przewidujesz kolejnych — to przedwczesna abstrakcja.
+
+---
+
+> **„Przepis kucharza"**: klasa bazowa drukuje przepis i kolejność kroków.
+> Każdy kucharz (podklasa) może wybrać własne składniki, ale kolejność kroków jest nienaruszalna.
+
+Albo krócej:
+
+> **„Ramka jest moja, obrazek jest twój."**
+> Klasa bazowa = ramka (nienaruszalna struktura).
+> Podklasa = obrazek (wymienna zawartość).

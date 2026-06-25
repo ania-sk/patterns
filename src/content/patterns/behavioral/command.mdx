@@ -1,0 +1,298 @@
+## 1. Definicja
+
+**Wzorzec Polecenia / Komenda** (ang. _Command_) to wzorzec projektowy z kategorii **behawioralnych**, który zamienia żądanie lub operację w samodzielny obiekt.
+
+> Encapsulate a request as an object, thereby letting you parameterize clients with different requests, queue or log requests, and support undoable operations.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **zamiast bezpośrednio wywoływać metodę, pakujemy całe wywołanie — wraz z jego parametrami — w obiekt.**
+
+Dzięki temu żądanie staje się _rzeczą_, którą możemy przekazywać, przechowywać, odłożyć na później lub cofnąć.
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie restaurację. Gość zasiada przy stoliku i chce zamówić zupę dnia oraz stek.
+
+W pierwszym, naiwnym scenariuszu gość wstaje, idzie bezpośrednio do kuchni i mówi kucharzowi: „Ugotuj mi zupę. Teraz. Natychmiast." Kucharz odkłada to, co robi, i realizuje polecenie. Za chwilę gość wraca z kolejnym żądaniem. I jeszcze raz.
+
+Oczywisty chaos. Kucharz nie może planować pracy. Gość nie wie, w jakiej kolejności będą realizowane dania. Nie ma możliwości zmiany zamówienia ani anulowania go.
+
+**Teraz wyobraźmy sobie tę samą restaurację z kelnerem.**
+
+Gość składa zamówienie kelnerowi. Kelner zapisuje je na karteczce — _to jest nasze Polecenie_. Karteczka wędruje do kuchni, trafia na szpilkę z innymi zamówieniami. Kucharz realizuje je w odpowiedniej kolejności. Gość może jeszcze przed wydaniem dania powiedzieć: „Przepraszam, rezygnuję ze steka." Kelner ściąga karteczkę. Anulowanie gotowe.
+
+Karteczka zamówienia to obiekt, który:
+
+- **enkapsuluje** żądanie (co zamówić, dla którego stolika),
+- **oddziela** osobę zamawiającą od osoby wykonującej,
+- może być **kolejkowana**, **cofnięta** lub **ponownie wykonana**.
+
+**Ćwiczenie myślowe:** Teraz zastąp gościa przyciskiem w aplikacji, kelnera — kontrolerem, a kucharza — serwisem bazodanowym. Co się zmienia? Nic poza domeną. Mechanizm pozostaje ten sam.
+
+---
+
+## 3. Przykład — naruszenie Command
+
+Wyobraźmy sobie, że tworzymy prosty edytor tekstu. Użytkownik może pisać, usuwać tekst, zmieniać czcionkę. Na razie wszystko jest bezpośrednio spięte: kliknięcie przycisku wywołuje metodę.
+
+```java
+class TextEditor {
+
+    private StringBuilder text = new StringBuilder();
+
+    // Każdy przycisk UI bezpośrednio woła metodę na edytorze
+    public void appendText(String value) {
+        text.append(value);
+    }
+
+    public void deleteLastChar() {
+        if (!text.isEmpty()) {
+            text.deleteCharAt(text.length() - 1);
+        }
+    }
+
+    public void clear() {
+        text.setLength(0);
+    }
+
+    // Brak jakiegokolwiek mechanizmu cofania operacji
+    // Aby dodać "undo", musielibyśmy zmodyfikować każdą metodę
+}
+```
+
+```java
+class EditorButton {
+
+    private TextEditor editor;
+
+    public EditorButton(TextEditor editor) {
+        this.editor = editor;
+    }
+
+    // Przycisk jest ściśle związany z konkretną operacją na edytorze
+    // Zmiana logiki operacji = zmiana klasy przycisku
+    public void onClick() {
+        editor.appendText("Hello");
+    }
+}
+```
+
+Co jest tutaj nie tak?
+
+- `EditorButton` wie **za dużo** — zna konkretną metodę i jej argumenty. Chcąc stworzyć przycisk "Usuń", musielibyśmy tworzyć kolejną klasę przycisku.
+- **Nie ma możliwości cofnięcia** (undo) bez gruntownej przebudowy — każda metoda musiałaby samodzielnie zapamiętywać stan sprzed zmiany.
+- **Kolejkowanie operacji** jest niemożliwe — wywołania giną w eterze zaraz po wykonaniu.
+- Klasa `TextEditor` rośnie z każdą nową operacją: kopiuj, wklej, pogrub, kursywa... staje się monolitem.
+
+---
+
+## 4. Przykład — zgodny z Command
+
+Kontynuując nasz edytor: zastanówmy się, jak możemy wyizolować każdą operację w osobny obiekt.
+
+**Krok 1 — definiujemy kontrakt Polecenia**
+
+```java
+// Każde polecenie musi umieć się wykonać i cofnąć
+interface Command {
+    void execute();
+    void undo();
+}
+```
+
+**Krok 2 — tworzymy Odbiorcę (Receiver)**
+
+```java
+// Odbiorca — klasa, która faktycznie wie, jak wykonać operację
+class TextEditor {
+
+    private StringBuilder text = new StringBuilder();
+
+    public void append(String value) {
+        text.append(value);
+    }
+
+    public void deleteChars(int count) {
+        int start = text.length() - count;
+        if (start >= 0) {
+            text.delete(start, text.length());
+        }
+    }
+
+    public String getText() {
+        return text.toString();
+    }
+}
+```
+
+**Krok 3 — implementujemy konkretne Polecenia**
+
+```java
+// Konkretne polecenie: dopisanie tekstu
+class AppendTextCommand implements Command {
+
+    private final TextEditor editor;
+    private final String value;
+
+    public AppendTextCommand(TextEditor editor, String value) {
+        this.editor = editor;
+        this.value = value;
+    }
+
+    @Override
+    public void execute() {
+        editor.append(value);
+    }
+
+    @Override
+    public void undo() {
+        // Wiemy dokładnie, ile znaków dopisaliśmy — cofamy tę samą liczbę
+        editor.deleteChars(value.length());
+    }
+}
+```
+
+**Krok 4 — tworzymy Invoker z historią operacji**
+
+```java
+// Invoker — zarządza kolejką i historią poleceń
+class CommandHistory {
+
+    // Stos ostatnio wykonanych poleceń
+    private final Deque<Command> history = new ArrayDeque<>();
+
+    public void execute(Command command) {
+        command.execute();
+        history.push(command);       // zapamiętujemy wykonane polecenie
+    }
+
+    public void undo() {
+        if (!history.isEmpty()) {
+            Command last = history.pop();
+            last.undo();             // cofamy ostatnie polecenie
+        }
+    }
+}
+```
+
+**Krok 5 — klient łączy wszystko razem**
+
+```java
+class EditorApp {
+    public static void main(String[] args) {
+        TextEditor editor = new TextEditor();
+        CommandHistory history = new CommandHistory();
+
+        // Wykonujemy polecenia — editor nie wie nic o CommandHistory
+        history.execute(new AppendTextCommand(editor, "Hello"));
+        history.execute(new AppendTextCommand(editor, ", World"));
+
+        System.out.println(editor.getText()); // Hello, World
+
+        // Cofamy ostatnią operację
+        history.undo();
+        System.out.println(editor.getText()); // Hello
+
+        // Cofamy jeszcze raz
+        history.undo();
+        System.out.println(editor.getText()); // (pusty)
+    }
+}
+```
+
+**Co zyskaliśmy?**
+
+- `EditorButton` (lub dowolny wyzwalacz) operuje wyłącznie na interfejsie `Command` — nie wie nic o `TextEditor`.
+- Każda operacja jest **samodzielna i odwracalna** — `undo()` jest odpowiedzialnością samego Polecenia, nie Odbiorcy.
+- Dodanie nowej operacji (np. `BoldTextCommand`) nie zmienia żadnej istniejącej klasy — otwieramy nowy plik.
+- Historia poleceń to zwykły stos — możemy dodać cofanie wielu kroków, ponawianie, makra, kolejkowanie.
+
+---
+
+## 5. Schemat wzorca
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       WZORZEC COMMAND                           │
+└─────────────────────────────────────────────────────────────────┘
+
+   Client                Invoker               Command
+   ──────────            ──────────────────    ─────────────────────
+   Tworzy       ──────►  execute(command)  ──► <<interface>>
+   konkretne             undo()                Command
+   polecenia             history: Deque        + execute()
+   i przekazuje          │                     + undo()
+   do Invokera           │                          ▲
+                         │                          │ implementuje
+                         │                 ─────────┴──────────
+                         │                 ConcreteCommand
+                         │                 - receiver: Receiver
+                         │                 - state (do undo)
+                         │                 + execute() ──────────►  Receiver
+                         └─────────────────────────────────────     ──────────
+                                                                    + action()
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Przepływ wywołania:                                        │
+  │                                                             │
+  │  Client                                                     │
+  │    │  new AppendTextCommand(editor, "Hello")                │
+  │    ▼                                                        │
+  │  Invoker.execute(command)                                   │
+  │    │  command.execute()  ──►  editor.append("Hello")        │
+  │    │  history.push(command)                                 │
+  │    ▼                                                        │
+  │  Invoker.undo()                                             │
+  │    │  command = history.pop()                               │
+  │    │  command.undo()  ──►  editor.deleteChars(5)            │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Dlaczego Command jest ważne?
+
+**Oddzielenie wyzwalacza od wykonawcy** — klawisz skrótu, przycisk toolbara, menu kontekstowe i polecenie głosowe mogą wywoływać tę samą operację bez wiedzy o sobie nawzajem. Wszystkie rozmawiają wyłącznie z interfejsem `Command`.
+
+**Undo/Redo za darmo** — historia poleceń to stos. `undo()` to `pop()` + odwrócenie stanu. Bez wzorca Command implementacja cofania oznaczałaby snapshotowanie całego stanu aplikacji po każdej zmianie — kosztowne i kruche.
+
+**Makra i transakcje** — `CompositeCommand` (wzorzec Composite + Command) to lista poleceń, która wykonuje się jako całość. To fundament transakcji i nagrywania makr w edytorach.
+
+**Kolejkowanie i harmonogramowanie** — obiekty `Command` możemy wrzucić do kolejki (np. `BlockingQueue`), przekazać wątkowi roboczemu albo zaplanować na konkretną godzinę. Bez enkapsulacji nie byłoby gdzie trzymać odłożonej operacji.
+
+**Wpływ na pracę zespołu** — nowe operacje to nowe klasy. Dwoje programistów może równolegle dodawać `BoldCommand` i `UndoLineCommand` bez konfliktów merge'a, bo każde polecenie żyje w osobnym pliku.
+
+---
+
+## 7. Kiedy stosować?
+
+**Edytory i narzędzia kreatywne** — każda operacja, którą użytkownik ma prawo cofnąć, jest kandydatem na `Command`. Photoshop, IntelliJ IDEA, Figma — wszędzie tam historia poleceń to serce systemu.
+
+**Systemy kolejkowania zadań** — Spring `@Async`, `ExecutorService`, Quartz Scheduler — przekazujesz do nich obiekt opisujący zadanie, a nie bezpośrednie wywołanie metody. To Command w czystej postaci.
+
+**Transakcje bazodanowe** — unit of work w Hibernate kolekcjonuje operacje INSERT/UPDATE/DELETE jako listę poleceń i wykonuje je zbiorczo na `commit()`.
+
+**Wzorzec CQRS** — Command Query Responsibility Segregation to architektoniczne wyniesienie Command na poziom całego systemu: każda mutacja stanu to obiekt polecenia, który trafia do szyny zdarzeń.
+
+**GUI i skróty klawiszowe** — Spring MVC, JavaFX, Android — akcje użytkownika to zdarzenia zamieniane w obiekty poleceń, niezależne od widoku, który je wyzwolił.
+
+**Kiedy Command się nie opłaca?**
+
+- Gdy operacja jest prosta, jednorazowa i nigdy nie będzie cofana — pośrednia warstwa Polecenia to zbędny koszt.
+- Gdy masz trzy przyciski z prostą logiką i wiesz na pewno, że undo nie wchodzi w grę — YAGNI wygrywa z wzorcem.
+
+---
+
+> **Zamień rozkaz w karteczkę.**
+
+Kelner nie biegnie do kuchni z każdym słowem gościa — zapisuje zamówienie. Karteczka to obiekt: można ją przekazać, odłożyć, anulować i powtórzyć.
+
+Trzy pytania, które zdradzają, że potrzebujesz Command:
+
+1. Czy użytkownik powinien móc **cofnąć** tę operację?
+2. Czy operacja powinna być **odłożona lub zakolejkowana**?
+3. Czy wiele różnych wyzwalaczy (przycisk, skrót, API) ma robić **to samo**?
+
+Jeśli przynajmniej jedno „tak" — sięgnij po Command.

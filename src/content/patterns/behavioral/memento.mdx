@@ -1,0 +1,258 @@
+## 1. Definicja
+
+**Memento** (ang. _pamiątka_) to wzorzec projektowy, który umożliwia zapisanie i przywrócenie poprzedniego stanu obiektu bez ujawniania szczegółów jego implementacji.
+
+> Without violating encapsulation, capture and externalize an object's internal state so that the object can be restored to this state later.
+> — Gang of Four, _Design Patterns_
+
+Najprościej rzecz ujmując: **Memento to możliwość cofnięcia zmian — jak Ctrl+Z w edytorze tekstu.**
+
+Wzorzec odpowiada na pytanie: jak zapisać stan obiektu w danym momencie, żeby móc do niego wrócić później — a jednocześnie nie naruszać zasady enkapsulacji i nie eksponować wewnętrznych pól klasy na zewnątrz?
+
+---
+
+## 2. Przykład z życia: zobaczmy jak to zrozumieć?
+
+Wyobraźmy sobie, że gramy w szachy na turnieju. W pewnym momencie chcemy przetestować ryzykowne posunięcie — ale nie jesteśmy pewni, czy to dobry ruch. Co byśmy zrobili?
+
+Zapisalibyśmy aktualną pozycję figur na kartce — rodzaj fotografii stanu planszy — a potem wykonali ruch. Jeśli okaże się błędem, po prostu wrócimy do zapisanej pozycji i rozstawimy figury od nowa.
+
+Zwróćmy uwagę na coś ważnego: kartka z pozycją figur **nie jest samą planszą**. To oddzielny obiekt, który przechowuje informację o stanie. Plansza nie musi wiedzieć, że kartka istnieje. Gracz, który trzyma kartkę, nie musi rozumieć reguł gry — on po prostu przechowuje zapis i w razie potrzeby go zwraca.
+
+To właśnie esencja wzorca Memento:
+
+- **Originator** (plansza szachowa) — obiekt, którego stan chcemy zapisać,
+- **Memento** (kartka z pozycją figur) — nienaruszalny zapis stanu,
+- **Caretaker** (gracz trzymający kartkę) — przechowuje Memento, ale nie zagląda do jego wnętrza.
+
+Ćwiczenie myślowe: wyobraźmy sobie edytor tekstu. Piszemy dokument, usuwamy akapit, a potem chcemy go odzyskać. Ctrl+Z przywraca poprzedni stan — ale jak to działa pod spodem? Editor musi gdzieś trzymać historię stanów. Każde wciśnięcie Ctrl+Z to sięgnięcie po ostatni zapis ze stosu i przywrócenie treści dokumentu do tamtego momentu. Dokładnie tak działa Memento — zobaczmy to w kodzie.
+
+---
+
+## 3. Przykład — naruszenie Memento (bez wzorca)
+
+Wyobraźmy sobie, że tworzymy prosty edytor tekstu. Użytkownik może pisać, a my chcemy dać mu możliwość cofnięcia ostatniej zmiany.
+
+Naiwne podejście: niech edytor sam w sobie przechowuje historię stanów jako listę Stringów. Caretaker (np. klasa `Application`) bezpośrednio odczytuje i manipuluje wewnętrzną strukturą edytora.
+
+```java
+class TextEditor {
+    // Wewnętrzny stan — bezpośrednio dostępny z zewnątrz
+    public String content;
+    // Historia jako publiczna lista — naruszenie enkapsulacji
+    public List<String> history = new ArrayList<>();
+
+    public void type(String text) {
+        // Zapisujemy poprzedni stan przed zmianą
+        history.add(content);
+        content = content + text;
+    }
+}
+
+class Application {
+    public static void main(String[] args) {
+        TextEditor editor = new TextEditor();
+        editor.content = "";
+
+        editor.type("Cześć, ");
+        editor.type("świecie!");
+
+        System.out.println(editor.content); // "Cześć, świecie!"
+
+        // Caretaker bezpośrednio grzebie w wewnętrznej historii edytora
+        // To naruszenie enkapsulacji — zewnętrzny kod zna strukturę wnętrza
+        if (!editor.history.isEmpty()) {
+            editor.content = editor.history.remove(editor.history.size() - 1);
+        }
+
+        System.out.println(editor.content); // "Cześć, "
+    }
+}
+```
+
+**Co jest złe w tym podejściu?**
+
+Klasa `Application` zna szczegóły implementacyjne `TextEditor` — wie, że historia to `List<String>`, i wie, jak z niej korzystać. To naruszenie enkapsulacji.
+
+Konkretne konsekwencje:
+
+- Jeśli zdecydujemy się zmienić strukturę historii (np. z `List` na `Deque`), musimy też zmienić kod w `Application` — i w każdym innym miejscu, które korzysta z historii,
+- Zewnętrzny kod może przypadkowo zmodyfikować historię edytora — np. wyczyścić ją, wstawić nieprawidłowy stan, zmienić kolejność,
+- Testowanie jest trudne: żeby przetestować funkcję "cofnij", musimy znać wewnętrzną strukturę edytora i ręcznie nią manipulować,
+- Klasa `TextEditor` ma dwa powody do zmiany: logika edycji i zarządzanie historią (naruszenie SRP).
+
+---
+
+## 4. Przykład — zgodny z Memento
+
+Jak podejdziemy do tego lepiej? Wydzielamy trzy osobne role: edytor wie, jak zapisać swój stan w obiekcie Memento i jak z niego przywrócić — ale to Caretaker decyduje, kiedy zapisać i kiedy przywrócić, a sam obiekt Memento jest nieprzezroczysty dla świata zewnętrznego.
+
+```java
+// Memento — "kartka z pozycją figur"
+// Przechowuje stan edytora; dostęp tylko przez Originator
+class TextEditorMemento {
+    // Pole prywatne — Caretaker nie może zajrzeć do środka
+    private final String savedContent;
+
+    // Konstruktor dostępny tylko przez Originator (w Javie można użyć package-private)
+    TextEditorMemento(String content) {
+        this.savedContent = content;
+    }
+
+    // Metoda dostępna tylko przez Originator — Caretaker jej nie używa
+    String getSavedContent() {
+        return savedContent;
+    }
+}
+
+// Originator — "plansza szachowa"
+// Jedyna klasa, która wie, co i jak zapisać
+class TextEditor {
+    private String content = "";
+
+    public void type(String text) {
+        content = content + text;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    // Originator tworzy Memento ze swojego aktualnego stanu
+    public TextEditorMemento save() {
+        return new TextEditorMemento(content);
+    }
+
+    // Originator przywraca stan z Memento — bez udziału Caretakera
+    public void restore(TextEditorMemento memento) {
+        this.content = memento.getSavedContent();
+    }
+}
+
+// Caretaker — "gracz trzymający kartkę"
+// Zarządza historią Memento, ale nigdy nie zagląda do ich wnętrza
+class EditorHistory {
+    private final Deque<TextEditorMemento> history = new ArrayDeque<>();
+
+    public void push(TextEditorMemento memento) {
+        history.push(memento);
+    }
+
+    public TextEditorMemento pop() {
+        return history.pop();
+    }
+
+    public boolean isEmpty() {
+        return history.isEmpty();
+    }
+}
+
+// Użycie
+class Application {
+    public static void main(String[] args) {
+        TextEditor editor = new TextEditor();
+        EditorHistory history = new EditorHistory();
+
+        // Piszemy i zapisujemy stan przed każdą zmianą
+        editor.type("Cześć, ");
+        history.push(editor.save()); // zapisujemy stan "Cześć, "
+
+        editor.type("świecie!");
+        System.out.println(editor.getContent()); // "Cześć, świecie!"
+
+        // Cofamy ostatnią zmianę — Ctrl+Z
+        if (!history.isEmpty()) {
+            editor.restore(history.pop());
+        }
+
+        System.out.println(editor.getContent()); // "Cześć, "
+    }
+}
+```
+
+**Co zyskujemy krok po kroku?**
+
+Klasa `TextEditorMemento` ma prywatne pole `savedContent` — `EditorHistory` (Caretaker) trzyma obiekty Memento na stosie, ale nigdy nie czyta ich zawartości. Wie tylko, że coś trzyma.
+
+Klasa `TextEditor` (Originator) jest jedyną klasą, która wie, co zapisać i jak z tego skorzystać. Metoda `save()` tworzy Memento, a `restore()` z niego korzysta — bez żadnego udziału zewnętrznego kodu.
+
+Klasa `EditorHistory` (Caretaker) może spokojnie zmienić `Deque` na `List`, dodać limit historii, dodać wiele poziomów cofania — i żadna z pozostałych klas nie musi wiedzieć o tej zmianie.
+
+**Porównanie przed/po:**
+
+```
+BEZ MEMENTO                        Z MEMENTO
+──────────────────────────────     ──────────────────────────────
+Application zna List<String>       Application zna tylko EditorHistory
+Application manipuluje historią    EditorHistory jest nieprzezroczysty
+TextEditor eksponuje wnętrze       TextEditor chroni swój stan
+Zmiana struktury → zmiany wszędzie Zmiana struktury → lokalnie w Caretaker
+```
+
+---
+
+## 5. Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         MEMENTO                             │
+└─────────────────────────────────────────────────────────────┘
+
+  ┌──────────────┐    save()     ┌──────────────────┐
+  │  Originator  │ ────────────► │     Memento      │
+  │ (TextEditor) │               │ (snapshot stanu) │
+  │              │ ◄──────────── │                  │
+  └──────────────┘   restore()   └──────────────────┘
+         ▲                               │
+         │                               │ przechowuje
+         │                               ▼
+         │                      ┌──────────────────┐
+         └──────────────────────│    Caretaker     │
+              restore(pop())    │ (EditorHistory)  │
+                                │  [stack/deque]   │
+                                └──────────────────┘
+
+  Caretaker NIE zagląda do wnętrza Memento.
+  Tylko Originator czyta i zapisuje swój stan.
+```
+
+---
+
+## 6. Dlaczego Memento jest ważne?
+
+**Enkapsulacja pozostaje nienaruszona.** Zewnętrzne klasy nie muszą wiedzieć, jak wygląda wewnętrzny stan Originatora. Dzięki temu możemy dowolnie zmieniać implementację — np. dodać nowe pola do `TextEditor` — i wystarczy zaktualizować metody `save()` i `restore()`. Caretaker nie wymaga żadnych zmian.
+
+**Łatwe testowanie.** Chcąc przetestować funkcję cofania, tworzymy edytor, wywołujemy `save()`, modyfikujemy stan, wywołujemy `restore()` i sprawdzamy wynik. Nie musimy znać wewnętrznej struktury klasy.
+
+**Kontrola nad historią.** Caretaker może implementować różne strategie: ograniczoną liczbę kroków cofania, redo (cofanie cofnięcia), punkty zapisu w grach, migawki konfiguracji. Cała ta logika żyje w Caretakerze i nie zaśmieca Originatora.
+
+**Wpływ na pracę zespołu.** Gdy jeden programista pracuje nad logiką edytora, a drugi nad zarządzaniem historią — nie wchodzą sobie w drogę. Kontrakty między klasami są jasno zdefiniowane przez interfejs `save()`/`restore()`.
+
+**Konsekwencje zaniedbania** w dużych projektach są dotkliwe: logika "cofnij/ponów" rozlewa się po całej aplikacji, stan obiektu jest eksponowany na zewnątrz i podatny na przypadkowe modyfikacje, a dodanie nowego pola do Originatora wymaga aktualizacji kodu w dziesiątkach miejsc.
+
+---
+
+## 7. Kiedy stosować?
+
+**Edytory i narzędzia twórcze.** Każdy edytor tekstu, graficzny, kodu — wszędzie tam, gdzie użytkownik oczekuje Ctrl+Z. Wzorzec jest tu naturalnym rozwiązaniem.
+
+**Gry.** Punkty zapisu (_save points_) to klasyczne Memento: gra zapisuje pełny stan świata gry (pozycje wrogów, ekwipunek, HP) do obiektu, który można później wczytać.
+
+**Transakcje i operacje odwracalne.** Jeśli operacja może się nie powieść, zapisujemy stan przed jej wykonaniem. W razie błędu przywracamy poprzedni stan — prymitywna forma transakcji bez bazy danych.
+
+**Konfiguracja z możliwością restartu.** Aplikacje, które pozwalają "przywrócić ustawienia domyślne" lub cofnąć ostatnią zmianę konfiguracji.
+
+**Kiedy Memento jest szczególnie cenne:** gdy Originator ma złożony stan zbudowany z wielu pól, gdy nie możemy lub nie chcemy eksponować jego wewnętrznej struktury, gdy potrzebujemy wielu niezależnych punktów przywracania.
+
+**Kiedy uważać:** Memento może być kosztowne pamięciowo — każdy zapis to kopia stanu. Przy dużych obiektach lub częstych zapisach warto rozważyć zapis przyrostowy (tylko różnic) albo ograniczenie głębokości historii.
+
+**W ekosystemie Java i frameworkach:**
+
+- `java.io.Serializable` — serializacja obiektu do strumienia to konceptualnie zapis Memento na dysk,
+- mechanizm _undo/redo_ w `javax.swing.undo.UndoManager` implementuje wariant tego wzorca,
+- snapshoty w systemach baz danych (np. Redis `BGSAVE`) to Memento na poziomie infrastruktury.
+
+---
+
+> _"Zrób zdjęcie, zanim cokolwiek zmienisz."_
+> Memento to aparat fotograficzny dla stanu obiektu — Originator robi zdjęcie, Caretaker trzyma album, a zdjęcia nie można podrobić.
