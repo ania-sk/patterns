@@ -36,7 +36,7 @@ export default function Navbar() {
       >
         {/* Logo */}
         <Link
-          href="/solid/srp"
+          href="/"
           className="flex shrink-0 items-center gap-2 font-mono text-sm font-medium"
           aria-label="patterns — strona główna"
         >
